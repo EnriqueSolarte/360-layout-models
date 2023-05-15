@@ -1,3 +1,6 @@
 [submodule "layout_models/models/HorizonNet"]
 	path = layout_models/models/HorizonNet
 	url = git@github.com:sunset1995/HorizonNet.git
+[submodule "layout_models/models/LGTNet"]
+	path = layout_models/models/LGTNet
+	url = git@github.com:zhigangjiang/LGT-Net.git
