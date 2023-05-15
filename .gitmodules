@@ -1,3 +1,0 @@
-[submodule "mvl_challenge/models/HorizonNet"]
-	path = mvl_challenge/models/HorizonNet
-	url = https://github.com/sunset1995/HorizonNet.git
