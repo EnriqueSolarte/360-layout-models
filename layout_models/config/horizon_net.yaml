@@ -1,0 +1,24 @@
+trained_models: ${load:${oc.env:LY_MODELS_CFG}/trained_models.yaml}
+
+inference:
+  batch_size: 16
+  num_workers: 4
+  
+
+model:
+  cuda_device: 0
+  ly_model: HorizonNet
+  ckpt: ${trained_models.mp3d.ckpt}
+  optimizer: Adam
+  loss: weighted_L1
+  min_std: 0.001
+  epochs: 10
+  save_every: -1
+  lr: 0.00005
+  lr_decay_rate: 0.90
+  seed: 594277
+  bn_momentum: 0
+  freeze_earlier_blocks: -1
+  beta1: 0.9
+  weight_decay: 0.0
+  no_save: True

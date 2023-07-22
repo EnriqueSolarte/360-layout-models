@@ -1,4 +1,4 @@
-from layout_models.models.horizon_net_wrapper import WrapperHorizonNet
+from layout_models.horizon_net_wrapper.wrapper_horizon_net import WrapperHorizonNet
 
 def load_layout_model(cfg):
     """

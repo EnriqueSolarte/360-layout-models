@@ -9,9 +9,9 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from mlc_pp import MLC_PP_CFG_DIR, MLC_PP_ROOT
 from geometry_perception_utils.config_utils import get_empty_cfg, read_omega_cfg, read_cfg
-from mlc_pp.models.HorizonNet.misc import utils as hn_utils
-from mlc_pp.models.HorizonNet.model import HorizonNet
-from mlc_pp.models.dataloader import MVImageLayout
+from layout_models.models.HorizonNet.misc import utils as hn_utils
+from layout_models.models.HorizonNet.model import HorizonNet
+from layout_models.dataloaders.image_idx_dataloader import ImageIdxDataloader
 
 class WrapperHorizonNet:
     def __init__(self, cfg):
@@ -36,7 +36,7 @@ class WrapperHorizonNet:
         """
 
         layout_dataloader = DataLoader(
-            MVImageLayout([(ly.img_fn, ly.idx) for ly in list_ly]),
+            ImageIdxDataloader([(ly.img_fn, ly.idx) for ly in list_ly]),
             batch_size=self.cfg.inference.batch_size,
             shuffle=False,
             drop_last=False,
