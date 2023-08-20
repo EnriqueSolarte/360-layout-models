@@ -115,7 +115,8 @@ class MVLSimpleDataLoader(data.Dataset):
             label = np.load(label_fn + '.npz')["phi_coords"]
         else:
             raise ValueError(f"Label file not found: {label_fn}")
-
+        assert label.shape[1] == img.shape[1], f"Shape mismatch: {label_fn}, {label.shape}"
+        
         if label.shape[0] > 2:
             # ! Then labels were compute from mlc [4, 1024]
             std = label[2:]

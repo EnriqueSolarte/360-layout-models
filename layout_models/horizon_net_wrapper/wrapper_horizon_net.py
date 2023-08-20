@@ -13,18 +13,19 @@ from layout_models.models.HorizonNet.misc import utils as hn_utils
 from layout_models.models.HorizonNet.model import HorizonNet
 from layout_models.dataloaders.image_idx_dataloader import ImageIdxDataloader
 from layout_models.dataloaders.mlc_simple_dataloader import get_mvl_simple_dataloader
-from geometry_perception_utils.eval_utils import eval_2d3d_iuo_from_tensors, compute_weighted_L1
+from geometry_perception_utils.eval_utils import eval_2d3d_iuo_from_tensors, compute_weighted_L1, compute_L1_loss
 from tqdm import tqdm, trange
 import logging
 from geometry_perception_utils.io_utils import save_json_dict
+import wandb
 
 
 class WrapperHorizonNet:
     def __init__(self, cfg):
         self.cfg = cfg
         # ! Setting cuda-device
-        self.device = torch.device(f"cuda:{cfg.model.cuda_device}" if torch.
-                                   cuda.is_available() else "cpu")
+        self.device = torch.device(
+            f"cuda:{cfg.model.cuda}" if torch.cuda.is_available() else "cpu")
 
         # Loaded trained model
         assert os.path.isfile(cfg.model.ckpt), f"Not found {cfg.model.ckpt}"
@@ -114,7 +115,7 @@ class WrapperHorizonNet:
                 f"Training HorizonNet epoch:{self.current_epoch}/{self.cfg.model.epochs}"
         ):
 
-            self.iterations += 1
+            self.train_iterations += 1
             x, y_bon_ref, std = next(iterator_train)
             y_bon_est, _ = self.net(x.to(self.device))
 
@@ -134,10 +135,16 @@ class WrapperHorizonNet:
             if loss.item() is np.NAN:
                 raise ValueError("something is wrong")
             self.tb_writer.add_scalar("train/loss", loss.item(),
-                                      self.iterations)
+                                      self.train_iterations)
             self.tb_writer.add_scalar("train/lr",
                                       self.lr_scheduler.get_last_lr()[0],
-                                      self.iterations)
+                                      self.train_iterations)
+
+            wandb.log({
+                "train/loss": loss.item(),
+                "train/lr": self.lr_scheduler.get_last_lr()[0],
+                "train/iter": self.train_iterations
+            })
 
             # back-prop
             self.optimizer.zero_grad()
@@ -204,6 +211,14 @@ class WrapperHorizonNet:
                                                          ]).mean()
                 local_eval["3DIoU"] = torch.FloatTensor([true_eval["3DIoU"]
                                                          ]).mean()
+
+            data = {
+                "valid_IoU/loss": local_eval["loss"].item(),
+                "valid_IoU/iter_loss": self.valid_iterations,
+            }
+            wandb.log(data)
+            self.valid_iterations += 1
+
             try:
                 for k, v in local_eval.items():
                     if v.isnan():
@@ -222,6 +237,7 @@ class WrapperHorizonNet:
             logging.info(f"2D-IoU score: {curr_score_2d_iou:.4f}")
             return {"2D-IoU": curr_score_2d_iou, "3D-IoU": curr_score_3d_iou}
 
+
         scaler_value = self.cfg.valid_iou.batch_size * \
             (len(iterator_valid_iou) - invalid_cnt)
         for k, v in total_eval.items():
@@ -231,6 +247,14 @@ class WrapperHorizonNet:
         # Save best validation loss model
         curr_score_3d_iou = total_eval["3DIoU"] / scaler_value
         curr_score_2d_iou = total_eval["2DIoU"] / scaler_value
+
+        data = {
+            "valid_IoU/2D-IoU": curr_score_2d_iou,
+            "valid_IoU/3D-IoU": curr_score_3d_iou,
+            "valid_IoU/epochs": self.valid_iou_epochs,
+        }
+        wandb.log(data)
+        self.valid_iou_epochs += 1
 
         # ! Saving current score
         self.curr_scores['iou_valid_scores'] = dict(
@@ -257,13 +281,15 @@ class WrapperHorizonNet:
             )
 
             if best_3d_iou_score < curr_score_3d_iou:
-                logging.info(f"New 3D-IoU Best Score {curr_score_3d_iou: 0.4f}")
+                logging.info(
+                    f"New 3D-IoU Best Score {curr_score_3d_iou: 0.4f}")
                 self.best_scores["best_iou_valid_score"][
                     'best_3d_iou_score'] = curr_score_3d_iou
                 self.save_model("best_3d_iou_valid.pth")
 
             if best_2d_iou_score < curr_score_2d_iou:
-                logging.info(f"New 2D-IoU Best Score {curr_score_2d_iou: 0.4f}")
+                logging.info(
+                    f"New 2D-IoU Best Score {curr_score_2d_iou: 0.4f}")
                 self.best_scores["best_iou_valid_score"][
                     'best_2d_iou_score'] = curr_score_2d_iou
                 self.save_model("best_2d_iou_valid.pth")
@@ -286,7 +312,9 @@ class WrapperHorizonNet:
     def prepare_for_training(self):
         self.is_training = True
         self.current_epoch = 0
-        self.iterations = 0
+        self.train_iterations = 0
+        self.valid_iterations = 0
+        self.valid_iou_epochs = 0
         self.best_scores = dict()
         self.curr_scores = dict()
         self.set_optimizer()
