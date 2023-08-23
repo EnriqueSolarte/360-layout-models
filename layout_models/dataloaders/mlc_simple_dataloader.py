@@ -117,11 +117,15 @@ class MVLSimpleDataLoader(data.Dataset):
             raise ValueError(f"Label file not found: {label_fn}")
         assert label.shape[1] == img.shape[1], f"Shape mismatch: {label_fn}, {label.shape}"
         
-        if label.shape[0] > 2:
+        if label.shape[0] == 4:
             # ! Then labels were compute from mlc [4, 1024]
             std = label[2:]
             label = label[:2]
-        else:
+        if label.shape[0] == 3:
+            # Then labels were compute from mlc [3, 1024]
+            label = label[:2]
+            std = np.hstack(label[3], label[3])
+        else:   
             std = np.ones([2, label.shape[1]])
 
         # Random flip
