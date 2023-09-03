@@ -124,7 +124,7 @@ class MVLSimpleDataLoader(data.Dataset):
         if label.shape[0] == 3:
             # Then labels were compute from mlc [3, 1024]
             label = label[:2]
-            std = np.hstack(label[3], label[3])
+            std = np.hstack((label[3], label[3]))
         else:   
             std = np.ones([2, label.shape[1]])
 

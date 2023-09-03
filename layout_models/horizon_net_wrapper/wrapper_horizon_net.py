@@ -17,6 +17,7 @@ from geometry_perception_utils.eval_utils import eval_2d3d_iuo_from_tensors, com
 from tqdm import tqdm, trange
 import logging
 from geometry_perception_utils.io_utils import save_json_dict
+from vslab_360_datasets.utils.scene_version_idx_utils import get_scene_list_from_list_scenes
 import wandb
 
 
@@ -107,6 +108,13 @@ class WrapperHorizonNet:
                     m.momentum = self.cfg.model.bn_momentum
 
         self.net.train()
+
+        if self.cfg.model.loss == "L1":
+            logging.info("Using L1 loss for training")
+        elif self.cfg.model.loss == "weighted_L1":
+            logging.info("Using weighted_L1 loss for training")
+        else:
+            raise ValueError("Loss function no defined in config file")
 
         iterator_train = iter(self.train_loader)
         for _ in trange(
@@ -319,9 +327,9 @@ class WrapperHorizonNet:
         self.curr_scores = dict()
         self.set_optimizer()
         self.set_scheduler()
+        self.set_log_dir()
         self.set_train_dataloader()
         self.set_valid_dataloader()
-        self.set_log_dir()
 
     def set_log_dir(self):
         output_dir = os.path.join(self.cfg.log_dir)
@@ -336,11 +344,23 @@ class WrapperHorizonNet:
         logging.info("Setting Training Dataloader")
         self.train_loader = get_mvl_simple_dataloader(self.cfg.train,
                                                       self.device)
+        logging.info("Saving data used for training")
+        list_frames = self.train_loader.dataset.data
+        room_idx_list = get_scene_list_from_list_scenes(list_frames)
+        fn = os.path.join(self.dir_ckpt, "scene_list_training.json")
+        save_json_dict(dict_data=room_idx_list, filename=fn)
+        logging.info(f"Saved scene_list: {fn})")
 
     def set_valid_dataloader(self):
         logging.info("Setting IoU Validation Dataloader")
         self.valid_iou_loader = get_mvl_simple_dataloader(
             self.cfg.valid_iou, self.device)
+        logging.info("Saving data used for validation")
+        list_frames = self.valid_iou_loader.dataset.data
+        room_idx_list = get_scene_list_from_list_scenes(list_frames)
+        fn = os.path.join(self.dir_ckpt, "scene_list_validation.json")
+        save_json_dict(dict_data=room_idx_list, filename=fn)
+        logging.info(f"Saved scene_list: {fn})")
 
 
 if __name__ == '__main__':
