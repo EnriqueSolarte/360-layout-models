@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from mlc_pp import MLC_PP_CFG_DIR, MLC_PP_ROOT
-from geometry_perception_utils.config_utils import get_empty_cfg, read_omega_cfg, read_cfg
+from geometry_perception_utils.config_utils import get_empty_cfg, read_omega_cfg, read_cfg, save_cfg
 from layout_models.models.HorizonNet.misc import utils as hn_utils
 from layout_models.models.HorizonNet.model import HorizonNet
 from layout_models.dataloaders.image_idx_dataloader import ImageIdxDataloader
@@ -338,6 +338,9 @@ class WrapperHorizonNet:
         self.dir_ckpt = os.path.join(output_dir, 'ckpt')
         os.makedirs(self.dir_log, exist_ok=True)
         os.makedirs(self.dir_ckpt, exist_ok=True)
+        fn = os.path.join(self.dir_ckpt, "config.yaml")
+        save_cfg(fn, self.cfg)
+        logging.info(f"Saved cfg file : {fn}")
         self.tb_writer = SummaryWriter(log_dir=self.dir_log)
 
     def set_train_dataloader(self):
