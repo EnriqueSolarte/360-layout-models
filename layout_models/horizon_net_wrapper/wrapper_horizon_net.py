@@ -119,8 +119,7 @@ class WrapperHorizonNet:
         iterator_train = iter(self.train_loader)
         for _ in trange(
                 len(self.train_loader),
-                desc=
-                f"Training HorizonNet epoch:{self.current_epoch}/{self.cfg.model.epochs}"
+                desc=f"Training HorizonNet epoch:{self.current_epoch}/{self.cfg.model.epochs}"
         ):
 
             self.train_iterations += 1
@@ -245,7 +244,6 @@ class WrapperHorizonNet:
             logging.info(f"2D-IoU score: {curr_score_2d_iou:.4f}")
             return {"2D-IoU": curr_score_2d_iou, "3D-IoU": curr_score_3d_iou}
 
-
         scaler_value = self.cfg.valid_iou.batch_size * \
             (len(iterator_valid_iou) - invalid_cnt)
         for k, v in total_eval.items():
@@ -255,14 +253,6 @@ class WrapperHorizonNet:
         # Save best validation loss model
         curr_score_3d_iou = total_eval["3DIoU"] / scaler_value
         curr_score_2d_iou = total_eval["2DIoU"] / scaler_value
-
-        data = {
-            "valid_IoU/2D-IoU": curr_score_2d_iou,
-            "valid_IoU/3D-IoU": curr_score_3d_iou,
-            "valid_IoU/epochs": self.valid_iou_epochs,
-        }
-        wandb.log(data)
-        self.valid_iou_epochs += 1
 
         # ! Saving current score
         self.curr_scores['iou_valid_scores'] = dict(
@@ -301,6 +291,16 @@ class WrapperHorizonNet:
                 self.best_scores["best_iou_valid_score"][
                     'best_2d_iou_score'] = curr_score_2d_iou
                 self.save_model("best_2d_iou_valid.pth")
+
+        data = {
+            "valid_IoU/2D-IoU": curr_score_2d_iou,
+            "valid_IoU/3D-IoU": curr_score_3d_iou,
+            "valid_IoU/best-2D-IoU": best_2d_iou_score,
+            "valid_IoU/best-3D-IoU": best_3d_iou_score,
+            "valid_IoU/epochs": self.valid_iou_epochs,
+        }
+        wandb.log(data)
+        self.valid_iou_epochs += 1
 
     def save_model(self, filename):
         if not self.cfg.model.get("save_ckpt", True):
