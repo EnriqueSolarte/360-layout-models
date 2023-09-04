@@ -292,6 +292,11 @@ class WrapperHorizonNet:
                     'best_2d_iou_score'] = curr_score_2d_iou
                 self.save_model("best_2d_iou_valid.pth")
 
+        best_3d_iou_score = self.best_scores["best_iou_valid_score"][
+                'best_3d_iou_score']
+        best_2d_iou_score = self.best_scores["best_iou_valid_score"][
+                'best_2d_iou_score']
+        
         data = {
             "valid_IoU/2D-IoU": curr_score_2d_iou,
             "valid_IoU/3D-IoU": curr_score_3d_iou,
@@ -338,9 +343,6 @@ class WrapperHorizonNet:
         self.dir_ckpt = os.path.join(output_dir, 'ckpt')
         os.makedirs(self.dir_log, exist_ok=True)
         os.makedirs(self.dir_ckpt, exist_ok=True)
-        fn = os.path.join(self.dir_ckpt, "config.yaml")
-        save_cfg(fn, self.cfg)
-        logging.info(f"Saved cfg file : {fn}")
         self.tb_writer = SummaryWriter(log_dir=self.dir_log)
 
     def set_train_dataloader(self):
