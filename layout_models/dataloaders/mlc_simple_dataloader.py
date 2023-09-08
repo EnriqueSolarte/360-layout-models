@@ -53,11 +53,6 @@ class MVLSimpleDataLoader(data.Dataset):
         self.pre_compute_list_files()
         # if cfg.data.check:
         #     self.check_data()
-        logging.info(
-            f"Simple MLC dataloader initialized with: {self.cfg.data.img_dir}")
-        logging.info(f"Total data in this dataloader: {self.data.__len__()}")
-        logging.info(f"Used scene list: {cfg.data.get('scene_list', 'None')}")
-        logging.info(f"Labels dir: {self.cfg.data.labels_dir}")
 
     def pre_compute_list_files(self):
         self.list_imgs = []
@@ -67,6 +62,11 @@ class MVLSimpleDataLoader(data.Dataset):
         [(self.list_imgs.append(os.path.join(self.img_dir, f"{scene}")),
           self.list_labels.append(os.path.join(self.labels_dir, f"{scene}")))
          for scene in self.data]
+        logging.info(
+            f"Simple MLC dataloader initialized with: {self.cfg.data.img_dir}")
+        logging.info(f"Total data in this dataloader: {self.data.__len__()}")
+        logging.info(f"Used scene list: {self.cfg.data.get('scene_list', 'None')}")
+        logging.info(f"Labels dir: {self.cfg.data.labels_dir}")
 
     def check_data(self):
         logging.info(f"Checking data img & labels")
