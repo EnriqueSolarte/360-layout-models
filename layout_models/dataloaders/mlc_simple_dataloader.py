@@ -36,7 +36,10 @@ class MVLSimpleDataLoader(data.Dataset):
             self.list_frames = [
                 item for sublist in self.list_frames for item in sublist
             ]
-
+            
+        seed = cfg.get('seed', 1000)
+        logging.info(f"Seed: {seed}")
+        np.random.seed(seed)
         if cfg.get('size', -1) < 0:
             np.random.shuffle(self.list_frames)
             self.data = self.list_frames
@@ -65,7 +68,7 @@ class MVLSimpleDataLoader(data.Dataset):
         logging.info(
             f"Simple MLC dataloader initialized with: {self.cfg.data.img_dir}")
         logging.info(f"Total data in this dataloader: {self.data.__len__()}")
-        logging.info(f"Used scene list: {self.cfg.data.get('scene_list', 'None')}")
+        # logging.info(f"Used scene list: {self.cfg.data.get('scene_list', 'None')}")
         logging.info(f"Labels dir: {self.cfg.data.labels_dir}")
 
     def check_data(self):

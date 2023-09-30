@@ -5,9 +5,7 @@ import torch
 import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from mlc_pp import MLC_PP_CFG_DIR, MLC_PP_ROOT
 from geometry_perception_utils.config_utils import get_empty_cfg, read_omega_cfg, read_cfg, save_cfg
 from layout_models.models.HorizonNet.misc import utils as hn_utils
 from layout_models.models.HorizonNet.model import HorizonNet
@@ -141,11 +139,11 @@ class WrapperHorizonNet:
                 raise ValueError("Loss function no defined in config file")
             if loss.item() is np.NAN:
                 raise ValueError("something is wrong")
-            self.tb_writer.add_scalar("train/loss", loss.item(),
-                                      self.train_iterations)
-            self.tb_writer.add_scalar("train/lr",
-                                      self.lr_scheduler.get_last_lr()[0],
-                                      self.train_iterations)
+            # self.tb_writer.add_scalar("train/loss", loss.item(),
+            #                           self.train_iterations)
+            # self.tb_writer.add_scalar("train/lr",
+            #                           self.lr_scheduler.get_last_lr()[0],
+            #                           self.train_iterations)
 
             wandb.log({
                 "train/loss": loss.item(),
@@ -246,9 +244,9 @@ class WrapperHorizonNet:
 
         scaler_value = self.cfg.valid_iou.batch_size * \
             (len(iterator_valid_iou) - invalid_cnt)
-        for k, v in total_eval.items():
-            k = "valid_IoU/%s" % k
-            self.tb_writer.add_scalar(k, v / scaler_value, self.current_epoch)
+        # for k, v in total_eval.items():
+        #     k = "valid_IoU/%s" % k
+        #     self.tb_writer.add_scalar(k, v / scaler_value, self.current_epoch)
 
         # Save best validation loss model
         curr_score_3d_iou = total_eval["3DIoU"] / scaler_value
@@ -343,7 +341,7 @@ class WrapperHorizonNet:
         self.dir_ckpt = os.path.join(output_dir, 'ckpt')
         os.makedirs(self.dir_log, exist_ok=True)
         os.makedirs(self.dir_ckpt, exist_ok=True)
-        self.tb_writer = SummaryWriter(log_dir=self.dir_log)
+        # self.tb_writer = SummaryWriter(log_dir=self.dir_log)
 
     def set_train_dataloader(self):
         logging.info("Setting Training Dataloader")
