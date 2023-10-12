@@ -11,12 +11,16 @@ from layout_models.models.HorizonNet.misc import utils as hn_utils
 from layout_models.models.HorizonNet.model import HorizonNet
 from layout_models.dataloaders.image_idx_dataloader import ImageIdxDataloader
 from layout_models.dataloaders.mlc_simple_dataloader import get_mvl_simple_dataloader
-from geometry_perception_utils.eval_utils import eval_2d3d_iuo_from_tensors, compute_weighted_L1, compute_L1_loss
+from layout_models.eval_utils import eval_2d3d_iuo_from_tensors, eval_2d3d_iuo
+from layout_models.loss_utils import compute_L1_loss, compute_weighted_L1
 from tqdm import tqdm, trange
 import logging
 from geometry_perception_utils.io_utils import save_json_dict
 from vslab_360_datasets.utils.scene_version_idx_utils import get_scene_list_from_list_scenes
 import wandb
+import json
+from geometry_perception_utils.config_utils import get_hydra_log_dir
+from geometry_perception_utils.io_utils import create_directory, save_json_dict
 
 
 class WrapperHorizonNet:
@@ -164,10 +168,10 @@ class WrapperHorizonNet:
         # Epoch finished
         self.current_epoch += 1
 
-        # ! Saving model
-        if self.cfg.model.get("save_every") > 0:
-            if self.current_epoch % self.cfg.model.get("save_every", 5) == 0:
-                self.save_model(f"model_at_{self.current_epoch}.pth")
+        # # ! Saving model
+        # if self.cfg.model.get("save_every") > 0:
+        #     if self.current_epoch % self.cfg.model.get("save_every", 5) == 0:
+        #         self.save_model(f"model_at_{self.current_epoch}.pth")
 
         if self.current_epoch > self.cfg.model.epochs:
             self.is_training = False
@@ -251,7 +255,9 @@ class WrapperHorizonNet:
         # Save best validation loss model
         curr_score_3d_iou = total_eval["3DIoU"] / scaler_value
         curr_score_2d_iou = total_eval["2DIoU"] / scaler_value
+        self.record_scores(curr_score_2d_iou, curr_score_3d_iou)
 
+    def record_scores(self, curr_score_2d_iou, curr_score_3d_iou):
         # ! Saving current score
         self.curr_scores['iou_valid_scores'] = dict(
             best_3d_iou_score=curr_score_3d_iou,
@@ -281,20 +287,20 @@ class WrapperHorizonNet:
                     f"New 3D-IoU Best Score {curr_score_3d_iou: 0.4f}")
                 self.best_scores["best_iou_valid_score"][
                     'best_3d_iou_score'] = curr_score_3d_iou
-                self.save_model("best_3d_iou_valid.pth")
+                # self.save_model("best_3d_iou_valid.pth")
 
             if best_2d_iou_score < curr_score_2d_iou:
                 logging.info(
                     f"New 2D-IoU Best Score {curr_score_2d_iou: 0.4f}")
                 self.best_scores["best_iou_valid_score"][
                     'best_2d_iou_score'] = curr_score_2d_iou
-                self.save_model("best_2d_iou_valid.pth")
+                # self.save_model("best_2d_iou_valid.pth")
 
         best_3d_iou_score = self.best_scores["best_iou_valid_score"][
-                'best_3d_iou_score']
+            'best_3d_iou_score']
         best_2d_iou_score = self.best_scores["best_iou_valid_score"][
-                'best_2d_iou_score']
-        
+            'best_2d_iou_score']
+
         data = {
             "valid_IoU/2D-IoU": curr_score_2d_iou,
             "valid_IoU/3D-IoU": curr_score_3d_iou,
@@ -306,9 +312,7 @@ class WrapperHorizonNet:
         self.valid_iou_epochs += 1
 
     def save_model(self, filename):
-        if not self.cfg.model.get("save_ckpt", True):
-            return
-
+    
         # ! Saving the current model
         state_dict = OrderedDict({
             "args": self.cfg,
@@ -318,8 +322,9 @@ class WrapperHorizonNet:
             },
             "state_dict": self.net.state_dict(),
         })
-        torch.save(state_dict, os.path.join(self.dir_ckpt, filename))
-
+        torch.save(state_dict, os.path.join(filename))
+        logging.info(f"Saved model: {filename}")
+        
     def prepare_for_training(self):
         self.is_training = True
         self.current_epoch = 0
@@ -332,14 +337,13 @@ class WrapperHorizonNet:
         self.set_scheduler()
         self.set_log_dir()
         self.set_train_dataloader()
-        self.set_valid_dataloader()
+        # self.set_valid_dataloader()
 
     def set_log_dir(self):
         output_dir = os.path.join(self.cfg.log_dir)
         logging.info(f"Output directory: {output_dir}")
-        self.dir_log = os.path.join(output_dir, 'log')
         self.dir_ckpt = os.path.join(output_dir, 'ckpt')
-        os.makedirs(self.dir_log, exist_ok=True)
+        # os.makedirs(self.dir_log, exist_ok=True)
         os.makedirs(self.dir_ckpt, exist_ok=True)
         # self.tb_writer = SummaryWriter(log_dir=self.dir_log)
 
@@ -353,8 +357,11 @@ class WrapperHorizonNet:
         fn = os.path.join(self.dir_ckpt, "scene_list_training.json")
         save_json_dict(dict_data=room_idx_list, filename=fn)
         logging.info(f"Saved scene_list: {fn})")
-
+    
     def set_valid_dataloader(self):
+        logging.warning("WARNING: This method is deprecated")
+        logging.warning("use evaluate_2d3d_iou instead")
+        raise DeprecationWarning("This method is deprecated")
         logging.info("Setting IoU Validation Dataloader")
         self.valid_iou_loader = get_mvl_simple_dataloader(
             self.cfg.valid_iou, self.device)
@@ -364,6 +371,141 @@ class WrapperHorizonNet:
         fn = os.path.join(self.dir_ckpt, "scene_list_validation.json")
         save_json_dict(dict_data=room_idx_list, filename=fn)
         logging.info(f"Saved scene_list: {fn})")
+
+
+def inference_horizon_net(model, dataloader):
+    model.net.eval()
+    evaluated_data = {}
+    for x in tqdm(dataloader, desc=f"Inferring HorizonNet..."):
+        with torch.no_grad():
+            y_bon_, y_cor_ = model.net(x["images"].to(model.device))
+            for y_, cor_, idx in zip(y_bon_.cpu(), y_cor_.cpu(), x["idx"]):
+                data = np.vstack((y_, cor_))
+                evaluated_data[idx] = data
+    return evaluated_data
+
+
+def evaluate_model(model, cfg):
+    logging.info("Starting evaluation...")
+
+    # * Gathering images list
+    scene_list_dt = json.load(open(cfg.data.scene_list, "r"))
+    fn_list = [f for f in scene_list_dt.values()]
+    fn_list = [item for sublist in fn_list for item in sublist]
+    img_data_list = [(f"{cfg.data.img_dir}/{f}.jpg", f) for f in fn_list]
+
+    logging.info(f"Number of images: {len(fn_list)}")
+    logging.info(f"Image directory: {cfg.data.img_dir}")
+    logging.info(f"Scene list: {cfg.data.scene_list}")
+
+    dataloader = DataLoader(
+        ImageIdxDataloader([(img_path, idx)
+                           for img_path, idx in img_data_list]),
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        drop_last=False,
+        num_workers=cfg.num_workers,
+        pin_memory=True if model.device != "cpu" else False,
+        worker_init_fn=lambda x: np.random.seed(),
+    )
+
+    est = inference_horizon_net(model, dataloader)
+
+    iou = {scene: eval_2d3d_iuo(
+        phi_coords_est=est[scene],
+        phi_coords_gt_bon=np.load(f"{cfg.data.labels_dir}/{scene}.npy"))
+        for scene in tqdm(est.keys(), desc="Evaluating 2d/3d IoU...")}
+
+    values_iou = np.array(list(iou.values()))
+    logging.info(f"2D IoU: {np.nanmean(values_iou[:, 0]):.4f}")
+    logging.info(f"3D IoU: {np.nanmean(values_iou[:, 1]):.4f}")
+
+    return iou
+
+
+def evaluate_2d3d_iou(model, cfg):
+
+    # * eval 2d3d iou in data defined in cfg
+    dict_iou = evaluate_model(model, cfg)
+
+    for split in cfg.get("splits", []):
+        category = list(split.keys())[0]
+        scene_list_fn = split[category]["scene_list"]
+
+        logging.info(f" * Split {category}:")
+        logging.info(f"   - Scene list: {scene_list_fn}")
+        scene_list = json.load(open(scene_list_fn, "r"))
+        # flat list of list
+        scene_list = [item for sublist in scene_list.values()
+                      for item in sublist]
+
+        iou_eval = [dict_iou[s] for s in scene_list]
+
+        iou_eval = np.mean(np.array(iou_eval), axis=0)
+        logging.info(f"   - 2D IoU: {iou_eval[0]:.4f}")
+        logging.info(f"   - 3D IoU: {iou_eval[1]:.4f}")
+
+        fn_scores = os.path.join(model.dir_ckpt, f"scores_{category}.json")
+        if os.path.exists(fn_scores):
+            data = json.load(open(fn_scores, "r"))
+            data[f"{category}/2D-IoU"] = iou_eval[0]
+            data[f"{category}/3D-IoU"] = iou_eval[1]
+            if iou_eval[0] > data[f"{category}/best-2D-IoU"]:
+                data[f"{category}/best-2D-IoU"] = iou_eval[0]
+            if iou_eval[1] > data[f"{category}/best-3D-IoU"]:
+                data[f"{category}/best-3D-IoU"] = iou_eval[1]
+            data[f"{category}/epochs"] = model.valid_iou_epochs
+        else:
+            data = {
+                f"{category}/2D-IoU": iou_eval[0],
+                f"{category}/3D-IoU": iou_eval[1],
+                f"{category}/best-2D-IoU": iou_eval[0],
+                f"{category}/best-3D-IoU": iou_eval[1],
+                f"{category}/epochs": model.valid_iou_epochs,
+            }
+        save_json_dict(fn_scores, data)
+        wandb.log(data)
+
+    # * evaluation in all testing split. Must be at the end
+    values_iou = np.array(list(dict_iou.values()))
+    model.record_scores(np.nanmean(values_iou[:, 0]),
+                        np.nanmean(values_iou[:, 1]))
+
+
+def save_model(model):
+    best_models_dir = os.path.join(get_hydra_log_dir(), "best_models_ckpt")
+    if os.path.exists(best_models_dir):
+        # * In case of other runs
+        best_3d_iou = model.best_scores["best_iou_valid_score"]['best_3d_iou_score']
+        best_2d_iou = model.best_scores["best_iou_valid_score"]['best_2d_iou_score']
+
+        log_scores = json.load(
+            open(os.path.join(best_models_dir, "best_scores.json"), "r"))
+        if log_scores["best_3d_iou"] < best_3d_iou:
+            fn = os.path.join(best_models_dir, f"best_3d_iou_model.pth")
+            model.save_model(fn)
+            log_scores["best_3d_iou"] = best_3d_iou
+            logging.info(f"     *   Best 3D IoU model found: {best_3d_iou}")
+        if log_scores["best_2d_iou"] < best_2d_iou:
+            fn = os.path.join(best_models_dir, f"best_2d_iou_model.pth")
+            model.save_model(fn)
+            log_scores["best_2d_iou"] = best_2d_iou
+            logging.info(f"     *   Best 2D IoU model found: {best_2d_iou}")
+    else:
+        # * In case of the first run
+        create_directory(best_models_dir, delete_prev=False)
+        best_3d_iou = model.best_scores["best_iou_valid_score"]['best_3d_iou_score']
+        best_2d_iou = model.best_scores["best_iou_valid_score"]['best_2d_iou_score']
+        log_scores = {"best_3d_iou": best_3d_iou, "best_2d_iou": best_2d_iou}
+        fn = os.path.join(best_models_dir, f"best_scores.json")
+        save_json_dict(fn, log_scores)
+
+        fn = os.path.join(best_models_dir, f"best_2d_iou_model.pth")
+        model.save_model(fn)
+        fn = os.path.join(best_models_dir, f"best_3d_iou_model.pth")
+        model.save_model(fn)
+        logging.info(f"     *   Best 3D IoU model found: {best_3d_iou}")
+        logging.info(f"     *   Best 2D IoU model found: {best_2d_iou}")
 
 
 if __name__ == '__main__':
