@@ -124,11 +124,14 @@ class MVLSimpleDataLoader(data.Dataset):
             # ! Then labels were compute from mlc [4, 1024]
             std = label[2:]
             label = label[:2]
-        if label.shape[0] == 3:
+        elif label.shape[0] == 3:
             # Then labels were compute from mlc [3, 1024]
+            logging.warning(f"label.shape[0]: {label.shape[0]}")
             label = label[:2]
             std = np.hstack((label[3], label[3]))
         else:   
+            logging.warning(f"label.shape[0]: {label.shape[0]}")
+            assert label.shape[0] == 2, f"Shape mismatch: {label_fn}, {label.shape}"
             std = np.ones([2, label.shape[1]])
 
         # Random flip
