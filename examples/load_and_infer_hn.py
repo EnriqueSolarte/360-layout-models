@@ -6,7 +6,6 @@ from layout_models import load_layout_model
 import os
 import numpy as np
 
-
 def main(cfg):
     # ! Loading dataset
     dt = HM3D_MVL(cfg.hm3d_mvl)
