@@ -10,3 +10,7 @@ git clone git@github.com:EnriqueSolarte/layout_models.git
 cd layout_models
 git submodule update --init --recursive
 ```
+
+## Tags
+
+* **2023.12.26:** Version used for MLC++ CVPR'24 paper submission.
