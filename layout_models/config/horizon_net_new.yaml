@@ -1,0 +1,38 @@
+trained_models: ${load:${oc.env:LY_MODELS_CFG}/trained_models.yaml}
+
+StepLR_scheduler:
+  name: ExponentialLR
+  lr_decay_rate: 0.90
+
+weighted_L1:
+  min_std: 0.001
+
+Adam_optimizer: 
+    name: Adam
+    lr: 0.00005
+    beta1: 0.9
+    weight_decay: 0.0
+  
+model:
+  cuda: 0
+  ly_model: HorizonNetV2
+  ckpt: ${trained_models.mp3d.ckpt}  
+  epochs: 10
+  save_every: -1
+  seed: 594277
+  bn_momentum: 0
+  freeze_earlier_blocks: -1
+  save_ckpt: True
+  cfg_train:
+    batch_size: 16
+    num_workers: 4
+    loss: ${weighted_L1}  
+    optimizer: ${Adam_optimizer}
+    scheduler: ${StepLR_scheduler}
+  cfg_valid:
+    batch_size: 16
+    num_workers: 4
+  cfg_inference:
+    batch_size: 16
+    num_workers: 4
+

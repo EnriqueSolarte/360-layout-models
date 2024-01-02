@@ -15,4 +15,5 @@ __pycache__/
 *.egg-info
 assets/
 *tmp*
-result/
+*result/
+*logs/
