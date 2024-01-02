@@ -8,7 +8,7 @@ import logging
 from omegaconf import OmegaConf
 import hydra
 from hydra.core.hydra_config import HydraConfig
-from layout_models.horizon_net_wrapper import estimate_within_list_ly
+from layout_models.horizon_net_wrapper.wrapper_horizon_net_new import estimate_within_list_ly
 from geometry_perception_utils.vispy_utils import plot_list_pcl
 from imageio.v2 import imwrite
 
