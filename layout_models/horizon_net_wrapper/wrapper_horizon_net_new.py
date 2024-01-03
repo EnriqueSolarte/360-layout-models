@@ -11,6 +11,7 @@ from torch import optim
 import numpy as np
 from tqdm import tqdm
 from vslab_360_datasets.data_structure.layout import Layout
+from tqdm import tqdm, trange
 
             
 class WrapperHorizonNet:
@@ -65,23 +66,71 @@ def set_scheduler(model: WrapperHorizonNet):
         raise NotImplementedError(
             f"Scheduler {model.cfg_train.scheduler.name} not implemented")
         
+        
+def set_for_training(model: WrapperHorizonNet):
+    # ! Freezing some layer
+    if model.cfg_train.freeze_earlier_blocks != -1:
+        b0, b1, b2, b3, b4 = model.net.feature_extractor.list_blocks()
+        blocks = [b0, b1, b2, b3, b4]
+        for i in range(model.cfg_train.freeze_earlier_blocks + 1):
+            logging.warning('Freeze block %d' % i)
+            for m in blocks[i]:
+                for param in m.parameters():
+                    param.requires_grad = False
 
-def train_loop(model: WrapperHorizonNet, dataloader, loss, logger_recorder=None):
+    if model.cfg_train.bn_momentum != 0:
+        for m in model.net.modules():
+            if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+                m.momentum = model.cfg_train.bn_momentum
+    model.ready_for_training = True
+    
+
+def train_loop(model: WrapperHorizonNet, dataloader, loss_func, logger_recorder=None):
     # Setting optimizer and scheduler if not set
-    if hasattr(model, 'optimizer'):
+    if not hasattr(model, 'optimizer'):
         set_optimizer(model)
-    if hasattr(model, 'scheduler'):
+    if not hasattr(model, 'scheduler'):
         set_scheduler(model)
+
+    if not hasattr(model, 'ready_for_training'):
+        # Set specific details for training HN.
+        set_for_training(model)
         
     model.net.train()
     
+    logging.info(f"Loss function: {loss_func.__module__}.{loss_func.__name__}")
+        
+    iterator_train = iter(dataloader)
+    for _ in trange(
+            len(dataloader),
+            desc=f"Training HorizonNet..."
+    ):
+
+        # * dataloader returns (x, y_bon_ref, std, cam_dist)
+        iter_data = next(iterator_train)
+        
+        y_bon_est, _ = model.net(iter_data['x'].to(model.device))
+
+        if y_bon_est is np.nan:
+            raise ValueError("Nan value")
+
+        loss = loss_func(y_bon_est.to(model.device),
+                        iter_data['y'])
+        
+        # back-prop
+        model.optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(model.net.parameters(),
+                                3.0,
+                                norm_type="inf")
+        model.optimizer.step()
+    model.lr_scheduler.step()
 
 
 def estimate_within_list_ly(model: WrapperHorizonNet, list_ly: List[Layout]):
     """
     Estimates phi_coords (layout boundaries) for all ly defined in list_ly using the passed model instance
     """
-
     layout_dataloader = DataLoader(
         ImageIdxDataloader([(ly.img_fn, ly.idx) for ly in list_ly]),
         batch_size=model.cfg_inference.batch_size,
@@ -107,3 +156,6 @@ def estimate_within_list_ly(model: WrapperHorizonNet, list_ly: List[Layout]):
         for ly in list_ly
     ]
 
+
+def save_model(model, cfg):
+    pass

@@ -19,7 +19,7 @@ class MVLSimpleDataLoader(data.Dataset):
     '''
     def __init__(self, cfg):
         self.cfg = cfg
-
+        logging.warning(f"loading deprecated file")
         # ! List of scenes defined in a list file
         if cfg.data.get('scene_list', '') == '':
             # ! Reading from available labels data

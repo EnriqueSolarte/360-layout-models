@@ -24,7 +24,7 @@ def main(cfg):
     vis_dir = create_directory(f"{cfg.log_dir}/vis")
     
     # ! Loading dataset
-    dataset = HM3D_MVL(cfg.hm3d_mvl)
+    dataset = HM3D_MVL(cfg.datasets.hm3d_mvl)
     for scene in dataset.list_scenes:
         logging.info(f"Scene: {scene}")
         list_ly = dataset.get_list_ly(scene_name=scene)
