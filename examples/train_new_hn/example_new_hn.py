@@ -7,7 +7,7 @@ import wandb
 import logging
 from layout_models.dataloaders import get_dataloader
 from layout_models.dataloaders.mvl_dataloader import MVLDataLoader
-import layout_models.horizon_net_wrapper.wrapper_horizon_net_new as hn
+import layout_models.horizon_net_wrapper.wrapper_horizon_net_new as ly_estimator
 from layout_models.loss_utils_new import compute_weighted_L1
 
 
@@ -23,12 +23,13 @@ def main(cfg):
         model = load_layout_model(cfg.model)
         train_dataloader = get_dataloader(dataset_class=MVLDataLoader, cfg=model.cfg_train)
 
+        test_dataloader = get_dataloader(dataset_class=MVLDataLoader, cfg=model.cfg_test)
         logging.info(f"Starting the training Trial: {trial}")
         for epoch in range(model.cfg_train.epochs):
             logging.info(f"Init epoch: {epoch}")
             logging.info(f"Experiment name: {cfg.experiment_name}")
-            hn.train_loop(model=model, dataloader=train_dataloader, loss_func=compute_weighted_L1)    
-            
+            ly_estimator.train_loop(model=model, dataloader=train_dataloader, loss_func=compute_weighted_L1)    
+            ly_estimator.test_loop(model=model, dataloader=test_dataloader)
         wandb.finish()
 
 

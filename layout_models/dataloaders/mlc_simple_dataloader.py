@@ -43,7 +43,7 @@ class MVLSimpleDataLoader(data.Dataset):
         if cfg.get('size', -1) < 0:
             np.random.shuffle(self.list_frames)
             self.data = self.list_frames
-        elif cfg.size < 1:
+        elif cfg.size <= 1:
             np.random.shuffle(self.list_frames)
             self.data = self.list_frames[:int(cfg.size *
                                               self.list_frames.__len__())]
@@ -94,7 +94,7 @@ class MVLSimpleDataLoader(data.Dataset):
         logging.info(f"Total data in this dataloader: {self.data.__len__()}")
         logging.info(f"Used scene list: {self.cfg.get('scene_list', 'NA')}")
         logging.info(
-            f"Labels dir: {os.path.join(self.cfg.data.labels_dir, self.cfg.label)}"
+            f"Labels dir: {self.cfg.data.labels_dir}"
         )
 
     def __len__(self):
@@ -124,15 +124,17 @@ class MVLSimpleDataLoader(data.Dataset):
             # ! Then labels were compute from mlc [4, 1024]
             std = label[2:]
             label = label[:2]
-        elif label.shape[0] == 3:
-            # Then labels were compute from mlc [3, 1024]
-            logging.warning(f"label.shape[0]: {label.shape[0]}")
-            label = label[:2]
-            std = np.hstack((label[3], label[3]))
-        else:   
-            logging.warning(f"label.shape[0]: {label.shape[0]}")
-            assert label.shape[0] == 2, f"Shape mismatch: {label_fn}, {label.shape}"
+        # elif label.shape[0] == 3:
+        #     # Then labels were compute from mlc [3, 1024]
+        #     # logging.warning(f"label.shape[0]: {label.shape[0]}")
+        #     label = label[:2]
+        #     std = np.hstack((label[3], label[3]))
+        elif label.shape[0] == 2:
             std = np.ones([2, label.shape[1]])
+            assert label.shape[0] == 2, f"Shape mismatch: {label_fn}, {label.shape}"
+        else:
+            raise ValueError(f"Label file does not match")
+            # logging.warning(f"label.shape[0]: {label.shape[0]}")
 
         # Random flip
         if self.cfg.get('flip', False) and np.random.randint(2) == 0:

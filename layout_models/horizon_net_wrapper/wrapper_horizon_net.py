@@ -130,7 +130,7 @@ class WrapperHorizonNet:
             
             # x, y_bon_ref, std = next(iterator_train)
             # * dataloader returns (x, y_bon_ref, std, cam_dist)
-            x, y_bon_ref, std, cam_dist = next(iterator_train)
+            x, y_bon_ref, std = next(iterator_train)
             
             y_bon_est, _ = self.net(x.to(self.device))
 
@@ -168,6 +168,12 @@ class WrapperHorizonNet:
                                     y_bon_ref.to(self.device),
                                     std.to(self.device),
                                     cam_dist.to(self.device),
+                                    self.cfg.model.min_std,
+                                    )
+            elif self.cfg.model.loss == "external_loss_fn":
+                loss = self.external_loss_fn(y_bon_est.to(self.device),
+                                    y_bon_ref.to(self.device),
+                                    std.to(self.device),
                                     self.cfg.model.min_std,
                                     )
             else:
@@ -375,7 +381,7 @@ class WrapperHorizonNet:
         self.set_optimizer()
         self.set_scheduler()
         self.set_log_dir()
-        self.set_train_dataloader()
+        # self.set_train_dataloader()
         # self.set_valid_dataloader()
 
     def set_log_dir(self):

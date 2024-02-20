@@ -127,6 +127,9 @@ def train_loop(model: WrapperHorizonNet, dataloader, loss_func, logger_recorder=
     model.lr_scheduler.step()
 
 
+def test_loop(model: WrapperHorizonNet, dataloader, logger_recorder=None):
+    pass
+
 def estimate_within_list_ly(model: WrapperHorizonNet, list_ly: List[Layout]):
     """
     Estimates phi_coords (layout boundaries) for all ly defined in list_ly using the passed model instance

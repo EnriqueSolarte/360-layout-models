@@ -8,7 +8,7 @@ import numpy as np
 
 def main(cfg):
     # ! Loading dataset
-    dt = HM3D_MVL(cfg.hm3d_mvl)
+    dt = HM3D_MVL(cfg.datasets.hm3d_mvl)
     list_ly = dt.get_list_ly()
     
     #! Loading HorizonNet
