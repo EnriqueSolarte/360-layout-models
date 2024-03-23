@@ -4,6 +4,9 @@ from layout_models.models.HorizonNet.misc import utils as hn_utils
 from layout_models.models.HorizonNet.model import HorizonNet
 from torch.utils.data import DataLoader
 from layout_models.dataloaders.image_idx_dataloader import ImageIdxDataloader
+from layout_models.dataloaders.simple_dataloader import SimpleDataloader
+from layout_models.eval_utils import eval_2d3d_iuo_from_tensors, eval_2d3d_iuo
+from layout_models.utils import load_module
 import logging
 from torch import nn
 import os 
@@ -21,12 +24,14 @@ class WrapperHorizonNetV2:
     net: Callable = nn.Identity()
     optimizer: Optional[optim.Optimizer] = None
     lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None
+    loss: Optional[Callable] = None
     
     def __init__(self, cfg):
         # Set parameters in the class
         [setattr(self, key, val) for key, val in cfg.items()]
         # ! Setting cuda-device
         self.device = torch.device(f"{cfg.device}" if torch.cuda.is_available() else "cpu")        
+    
         logging.info("HorizonNet Wrapper Successfully initialized")
 
 
@@ -108,26 +113,16 @@ def set_for_training(model: WrapperHorizonNetV2, optimizer=None, scheduler=None)
     logging.info("HorizonNet ready for training")    
     
         
-def train_loop(model: WrapperHorizonNetV2, dataloader, loss_func, logger=None):
+def train_loop(model: WrapperHorizonNetV2, dataloader, loss_func):
     # Setting optimizer and scheduler if not set
-    if not hasattr(model, 'optimizer'):
-        set_default_optimizer(model)
-    if not hasattr(model, 'scheduler'):
-        set_default_scheduler(model)
-
-    if not hasattr(model, 'ready_for_training'):
-        # Set specific details for training HN.
-        set_for_training(model)
+    assert model.optimizer is not None, "Optimizer not set"
+    assert model.lr_scheduler is not None, "Scheduler not set"
         
     model.net.train()
-    
     logging.info(f"Loss function: {loss_func.__module__}.{loss_func.__name__}")
         
     iterator_train = iter(dataloader)
-    for _ in trange(
-            len(dataloader),
-            desc=f"Training HorizonNet..."
-    ):
+    for _ in trange(len(dataloader), desc=f"Training HorizonNet..."):
 
         # * dataloader returns (x, y_bon_ref, std, cam_dist)
         iter_data = next(iterator_train)
@@ -147,11 +142,32 @@ def train_loop(model: WrapperHorizonNetV2, dataloader, loss_func, logger=None):
                                 3.0,
                                 norm_type="inf")
         model.optimizer.step()
+    
     model.lr_scheduler.step()
 
 
-def test_loop(model: WrapperHorizonNetV2, dataloader, logger=None):
-    pass
+def test_loop(model: WrapperHorizonNetV2, dataloader, epoch=0):
+    model.net.eval()
+    iterator = iter(dataloader)
+
+    data_eval = {"loss": [], "2DIoU": [], "3DIoU": []}
+    for _ in trange(len(iterator),desc=f"test loop {epoch}"):
+        dt = next(iterator)
+        x, y_bon_ref = dt["x"], dt["y"]
+        
+        with torch.no_grad():
+            y_bon_est, _ = model.net(x.to(model.device))
+            loss = model.loss(y_bon_est.to(model.device), y_bon_ref.to(model.device))
+            
+            data_eval["loss"].append(loss.item())
+            for gt, est in zip(y_bon_ref.cpu().numpy(),
+                                   y_bon_est.cpu().numpy()):
+                    eval_2d3d_iuo_from_tensors(
+                        est[None],
+                        gt[None],
+                        data_eval,
+                    )
+    return data_eval
 
 
 def estimate_within_list_ly(model: WrapperHorizonNetV2, list_ly: List[Layout]):
@@ -197,12 +213,26 @@ def main(cfg):
     save_cfg(cfg, cfg_file=f"{cfg.log_dir}/horizon_net_v2.yaml", save_list_scripts=[__file__])
     
     model = WrapperHorizonNetV2(cfg.model)
-    
+    model.loss = load_module(cfg.model.loss.module)
     # load pre-trained model
     load_model(cfg.model.ckpt, model)
     
     # prepare model for training
     set_for_training(model)
+    
+    test_loader = DataLoader(
+        SimpleDataloader(cfg.test.data),
+        batch_size=cfg.test.batch_size,
+        shuffle=False,
+        drop_last=False,
+        num_workers=cfg.test.num_workers,
+        pin_memory=True,
+        worker_init_fn=lambda x: cfg.test.seed,
+    )
+    
+    test_eval = test_loop(model, test_loader)
+    
+    
     
 
 if __name__ == "__main__":

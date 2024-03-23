@@ -1,12 +1,10 @@
 # ! Pretrained HN models 
-mp3d:
-  ckpt: "/media/Pluto/justin/code/360-retraining/models/HorizonNet/ckpt/resnet50_rnn__mp3d.pth"
-
-zind:
-  ckpt: "/media/Pluto/justin/code/360-retraining/models/HorizonNet/ckpt/resnet50_rnn__zind.pth"
-
-st3d:
-  ckpt: "/media/Pluto/justin/code/360-retraining/models/HorizonNet/ckpt/resnet50_rnn__st3d.pth"
-
-panos2d3d:
-  ckpt: "/media/Pluto/justin/code/360-retraining/models/HorizonNet/ckpt/resnet50_rnn__panos2d3d.pth"
+trained_models:
+  hn_mp3d:
+    ckpt: "/media/Pluto/justin/code/360-retraining/models/HorizonNet/ckpt/resnet50_rnn__mp3d.pth"
+  hn_zind:
+    ckpt: "/media/Pluto/justin/code/360-retraining/models/HorizonNet/ckpt/resnet50_rnn__zind.pth"
+  hn_st3d:
+    ckpt: "/media/Pluto/justin/code/360-retraining/models/HorizonNet/ckpt/resnet50_rnn__st3d.pth"
+  hn_panos2d3d:
+    ckpt: "/media/Pluto/justin/code/360-retraining/models/HorizonNet/ckpt/resnet50_rnn__panos2d3d.pth"

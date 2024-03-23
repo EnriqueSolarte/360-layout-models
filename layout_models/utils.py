@@ -1,4 +1,7 @@
 
+import importlib
+
+
 def load_layout_model(cfg):
     """
     Load a layout model estimator and returns an instance of it
@@ -14,3 +17,13 @@ def load_layout_model(cfg):
         raise NotImplementedError("")
 
     return model
+
+
+def load_module(module_name):
+    """
+    Load a module and return the instance
+    """
+    path_module = module_name.split(".")
+    module = importlib.import_module(".".join(path_module[:-1]))
+    instance = getattr(module, path_module[-1])
+    return instance
