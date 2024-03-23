@@ -12,54 +12,67 @@ import numpy as np
 from tqdm import tqdm
 from vslab_360_datasets.data_structure.layout import Layout
 from tqdm import tqdm, trange
-
+import hydra
+from geometry_perception_utils.io_utils import get_abs_path
+from geometry_perception_utils.config_utils import save_cfg
             
-class WrapperHorizonNet:
+            
+class WrapperHorizonNetV2:
     net: Callable = nn.Identity()
-    def __init__(self, cfg):
-        for key, val in cfg.items():
-            setattr(self, key, val)
+    optimizer: Optional[optim.Optimizer] = None
+    lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None
     
+    def __init__(self, cfg):
+        # Set parameters in the class
+        [setattr(self, key, val) for key, val in cfg.items()]
         # ! Setting cuda-device
-        self.device = torch.device(f"cuda:{cfg.cuda}" if torch.cuda.is_available() else "cpu")        
-        logging.info("HorizonNet Wrapper Successfully initialized")
-
-        # Loaded trained model
-        assert os.path.isfile(cfg.ckpt), f"Not found {cfg.ckpt}"
-        logging.info("Loading HorizonNet...")
-        self.net = hn_utils.load_trained_model(HorizonNet,
-                                               cfg.ckpt).to(self.device)
-        logging.info(f"ckpt: {cfg.ckpt}")
+        self.device = torch.device(f"{cfg.device}" if torch.cuda.is_available() else "cpu")        
         logging.info("HorizonNet Wrapper Successfully initialized")
 
 
-def set_optimizer(model: WrapperHorizonNet):
+def load_model(ckpt, model: WrapperHorizonNetV2):
+    """
+    Loads pre-trained model weights from the checkpoint file specified in the config file
+    Args:
+        ckpt: saved check point 
+        model (WrapperHorizonNetV2): model instance
+    """
+    assert os.path.isfile(ckpt), f"Not found {ckpt}"
+    logging.info("Loading HorizonNet...")
+    model.net = hn_utils.load_trained_model(HorizonNet, ckpt).to(model.device)
+    logging.info(f"ckpt: {ckpt}")
+    logging.info("HorizonNet Wrapper Successfully initialized")
+
+
+def set_default_optimizer(model: WrapperHorizonNetV2):
     # Setting optimizer
-    if model.cfg_train.optimizer.name == "SGD":
+    logging.info(f"Setting Optimizer: {model.train.optimizer.name}")
+    if model.train.optimizer.name == "SGD":
         model.optimizer = optim.SGD(
             filter(lambda p: p.requires_grad, model.net.parameters()),
-            lr=model.cfg_train.optimizer.lr,
-            momentum=model.cfg_train.optimizer.beta1,
-            weight_decay=model.cfg_train.optimizer.weight_decay,
+            lr=model.train.optimizer.lr,
+            momentum=model.train.optimizer.beta1,
+            weight_decay=model.train.optimizer.weight_decay,
         )
-    elif model.cfg_train.optimizer.name == "Adam":
+    elif model.train.optimizer.name == "Adam":
         model.optimizer = optim.Adam(
             filter(lambda p: p.requires_grad, model.net.parameters()),
-            lr=model.cfg_train.optimizer.lr,
-            betas=(model.cfg_train.optimizer.beta1, 0.999),
-            weight_decay=model.cfg_train.optimizer.weight_decay,
+            lr=model.train.optimizer.lr,
+            betas=(model.train.optimizer.beta1, 0.999),
+            weight_decay=model.train.optimizer.weight_decay
         )
     else:
         raise NotImplementedError(
-            f"Optimizer {model.cfg_train.optimizer.name} not implemented")
+            f"Optimizer {model.train.optimizer.name} not implemented")
 
         
-def set_scheduler(model: WrapperHorizonNet):
+def set_default_scheduler(model: WrapperHorizonNetV2):
     assert hasattr(model, 'optimizer'), "Optimizer not set"
     
+    logging.info(f"Setting scheduler: {model.train.scheduler.name}")
     # Setting scheduler
-    if model.cfg_train.scheduler.name == "ExponentialLR":   
-        decayRate = model.cfg_train.scheduler.lr_decay_rate
+    if model.train.scheduler.name == "ExponentialLR":   
+        decayRate = model.train.scheduler.lr_decay_rate
         model.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
             optimizer=model.optimizer, gamma=decayRate)
     else:
@@ -67,30 +80,40 @@ def set_scheduler(model: WrapperHorizonNet):
             f"Scheduler {model.cfg_train.scheduler.name} not implemented")
         
         
-def set_for_training(model: WrapperHorizonNet):
-    # ! Freezing some layer
-    if model.cfg_train.freeze_earlier_blocks != -1:
+def set_for_training(model: WrapperHorizonNetV2, optimizer=None, scheduler=None):
+    # ! Freezing some layer. This is based on the original implementation
+    if model.train.freeze_earlier_blocks != -1:
         b0, b1, b2, b3, b4 = model.net.feature_extractor.list_blocks()
         blocks = [b0, b1, b2, b3, b4]
-        for i in range(model.cfg_train.freeze_earlier_blocks + 1):
+        for i in range(model.train.freeze_earlier_blocks + 1):
             logging.warning('Freeze block %d' % i)
             for m in blocks[i]:
                 for param in m.parameters():
                     param.requires_grad = False
 
-    if model.cfg_train.bn_momentum != 0:
+    if model.train.bn_momentum != 0:
         for m in model.net.modules():
             if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
                 m.momentum = model.cfg_train.bn_momentum
-    model.ready_for_training = True
     
-
-def train_loop(model: WrapperHorizonNet, dataloader, loss_func, logger_recorder=None):
+    if optimizer is not None:
+        model.optimizer = optimizer
+    else:
+        set_default_optimizer(model)
+    
+    if scheduler is not None:
+        model.lr_scheduler = scheduler
+    else:
+        set_default_scheduler(model)
+    logging.info("HorizonNet ready for training")    
+    
+        
+def train_loop(model: WrapperHorizonNetV2, dataloader, loss_func, logger=None):
     # Setting optimizer and scheduler if not set
     if not hasattr(model, 'optimizer'):
-        set_optimizer(model)
+        set_default_optimizer(model)
     if not hasattr(model, 'scheduler'):
-        set_scheduler(model)
+        set_default_scheduler(model)
 
     if not hasattr(model, 'ready_for_training'):
         # Set specific details for training HN.
@@ -127,10 +150,11 @@ def train_loop(model: WrapperHorizonNet, dataloader, loss_func, logger_recorder=
     model.lr_scheduler.step()
 
 
-def test_loop(model: WrapperHorizonNet, dataloader, logger_recorder=None):
+def test_loop(model: WrapperHorizonNetV2, dataloader, logger=None):
     pass
 
-def estimate_within_list_ly(model: WrapperHorizonNet, list_ly: List[Layout]):
+
+def estimate_within_list_ly(model: WrapperHorizonNetV2, list_ly: List[Layout]):
     """
     Estimates phi_coords (layout boundaries) for all ly defined in list_ly using the passed model instance
     """
@@ -162,3 +186,24 @@ def estimate_within_list_ly(model: WrapperHorizonNet, list_ly: List[Layout]):
 
 def save_model(model, cfg):
     pass
+
+
+        
+@hydra.main(version_base=None,
+            config_path=get_abs_path(__file__),
+            config_name="horizon_net_v2")   
+def main(cfg):
+    # Save CFG and this script
+    save_cfg(cfg, cfg_file=f"{cfg.log_dir}/horizon_net_v2.yaml", save_list_scripts=[__file__])
+    
+    model = WrapperHorizonNetV2(cfg.model)
+    
+    # load pre-trained model
+    load_model(cfg.model.ckpt, model)
+    
+    # prepare model for training
+    set_for_training(model)
+    
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,56 @@
+trained_models: ${load:${oc.env:LY_MODELS_CFG}/trained_models.yaml}
+
+ExponentialLR:
+  name: ExponentialLR
+  lr_decay_rate: 0.90
+
+Adam_optimizer: 
+    name: Adam
+    lr: 0.00005
+    beta1: 0.9
+    weight_decay: 0.0
+  
+cuda: 0
+model:
+  device: cuda:${cuda}
+  ly_model: HorizonNetV2
+  ckpt: ${trained_models.mp3d.ckpt}  
+  seed: 594277
+  train: ${train}
+  test: ${test}
+  inference: ${inference}
+
+inference: 
+  seed: ${model.seed}
+  batch_size: 16
+  size: -1
+  num_workers: 4
+
+test: 
+  seed: ${model.seed}
+  batch_size: 16
+  size: -1
+  num_workers: 4
+
+train:
+  epochs: 10
+  save_ckpt: True
+  seed: ${model.seed}
+  batch_size: 16
+  size: -1
+  num_workers: 4
+  optimizer: ${Adam_optimizer}
+  scheduler: ${ExponentialLR}
+  bn_momentum: 0
+  freeze_earlier_blocks: -1
+  save_every: -1
+
+defaults:
+  - general
+  - _self_
+
+log_dir: ${get_hydra_file_dirname:}/logs/${script}/${date}
+
+hydra:
+  searchpath:
+    - ${oc.env:LY_MODELS_CFG}

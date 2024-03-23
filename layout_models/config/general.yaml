@@ -1,13 +1,10 @@
 
-experiment_name: ${date}
-log_dir: ${oc.env:LY_MODELS_ASSETS}/${script}/${experiment_name}
+log_dir: ${get_hydra_file_dirname:}/logs/${script}/${date}.${time}
 script: ${hydra:job.name}
 
 hydra:
   run:
     dir: ${log_dir}
-
-# dirname: ${get_hydra_dirname:}
 
 date: ${now:%y%m%d}
 time: ${now:%H%M%S}
