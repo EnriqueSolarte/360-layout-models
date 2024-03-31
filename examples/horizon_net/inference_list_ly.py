@@ -30,13 +30,13 @@ def main(cfg):
 
         # inference within list_ly 
         hn.estimate_within_list_ly(list_ly=list_ly, model=model)
-        # canvas = plot_list_pcl([ly.boundary_floor for ly in list_ly], return_canvas=True)
-        # img = canvas.render(alpha=True, bgcolor=(1, 1, 1, 0),)
-        # fn = f"{vis_dir}/{scene_name}.png"
+        canvas = plot_list_pcl([ly.boundary_floor for ly in list_ly], return_canvas=True)
+        img = canvas.render(alpha=True, bgcolor=(1, 1, 1, 0),)
+        fn = f"{vis_dir}/{scene_name}.png"
         
-        # imwrite(fn, img)
-        # print("Saved", fn)
-        # input("Press Enter to continue...")
+        imwrite(fn, img)
+        print("Saved", fn)
+        input("Press Enter to continue...")
         
     
     
