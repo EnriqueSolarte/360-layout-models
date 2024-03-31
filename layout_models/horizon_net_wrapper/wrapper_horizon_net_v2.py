@@ -18,7 +18,9 @@ from tqdm import tqdm, trange
 import hydra
 from geometry_perception_utils.io_utils import get_abs_path
 from geometry_perception_utils.config_utils import save_cfg
-            
+from layout_models.utils import print_data_eval
+from collections import OrderedDict
+       
             
 class WrapperHorizonNetV2:
     net: Callable = nn.Identity()
@@ -113,28 +115,29 @@ def set_for_training(model: WrapperHorizonNetV2, optimizer=None, scheduler=None)
     logging.info("HorizonNet ready for training")    
     
         
-def train_loop(model: WrapperHorizonNetV2, dataloader, loss_func):
+def train_loop(model: WrapperHorizonNetV2, dataloader, epoch=0):
     # Setting optimizer and scheduler if not set
     assert model.optimizer is not None, "Optimizer not set"
     assert model.lr_scheduler is not None, "Scheduler not set"
         
     model.net.train()
-    logging.info(f"Loss function: {loss_func.__module__}.{loss_func.__name__}")
         
     iterator_train = iter(dataloader)
-    for _ in trange(len(dataloader), desc=f"Training HorizonNet..."):
+    data_eval = {"loss": [], 'lr': []}
+    for _ in trange(len(dataloader), desc=f"Training HorizonNet - Epoch:{epoch} "):
 
         # * dataloader returns (x, y_bon_ref, std, cam_dist)
-        iter_data = next(iterator_train)
+        dt = next(iterator_train)
+        x, y_bon_ref = dt["x"], dt["y"]
         
-        y_bon_est, _ = model.net(iter_data['x'].to(model.device))
+        y_bon_est, _ = model.net(x.to(model.device))
+        loss = model.loss(y_bon_est.to(model.device), y_bon_ref.to(model.device))
 
         if y_bon_est is np.nan:
             raise ValueError("Nan value")
-
-        loss = loss_func(y_bon_est.to(model.device),
-                        iter_data['y'])
         
+        data_eval["loss"].append(loss.item())
+
         # back-prop
         model.optimizer.zero_grad()
         loss.backward()
@@ -144,14 +147,17 @@ def train_loop(model: WrapperHorizonNetV2, dataloader, loss_func):
         model.optimizer.step()
     
     model.lr_scheduler.step()
-
+    lr = model.lr_scheduler.get_last_lr()[0]
+    data_eval["lr"].append(lr)
+    return data_eval
+    
 
 def test_loop(model: WrapperHorizonNetV2, dataloader, epoch=0):
     model.net.eval()
     iterator = iter(dataloader)
 
     data_eval = {"loss": [], "2DIoU": [], "3DIoU": []}
-    for _ in trange(len(iterator),desc=f"test loop {epoch}"):
+    for _ in trange(len(iterator),desc=f"Test loop - Epoch:{epoch}"):
         dt = next(iterator)
         x, y_bon_ref = dt["x"], dt["y"]
         
@@ -176,10 +182,10 @@ def estimate_within_list_ly(model: WrapperHorizonNetV2, list_ly: List[Layout]):
     """
     layout_dataloader = DataLoader(
         ImageIdxDataloader([(ly.img_fn, ly.idx) for ly in list_ly]),
-        batch_size=model.cfg_inference.batch_size,
+        batch_size=model.inference.batch_size,
         shuffle=False,
         drop_last=False,
-        num_workers=model.cfg_inference.num_workers,
+        num_workers=model.inference.num_workers,
         pin_memory=True if model.device != "cpu" else False,
         worker_init_fn=lambda x: model.seed,
     )
@@ -200,8 +206,20 @@ def estimate_within_list_ly(model: WrapperHorizonNetV2, list_ly: List[Layout]):
     ]
 
 
-def save_model(model, cfg):
-    pass
+def save_model(model, ckpt_path):
+    # ! Saving the current model
+    state_dict = OrderedDict({
+        "kwargs": {
+            "backbone": model.net.backbone,
+            "use_rnn": model.net.use_rnn,
+        },
+        "state_dict": model.net.state_dict(),
+    })
+    
+    torch.save(state_dict, ckpt_path)
+    logging.info(f"Saved model: {ckpt_path}")
+    
+
 
 
         
@@ -232,6 +250,7 @@ def main(cfg):
     
     test_eval = test_loop(model, test_loader)
     
+    print_data_eval(test_eval)
     
     
 

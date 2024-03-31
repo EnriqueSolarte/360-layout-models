@@ -12,6 +12,7 @@ datasets:
     labels_dir: ${datasets.mvl_root_challenge}/mvl_challenge_dataset/labels/gt
     test_scene_list: ${datasets.mvl_root}/hm3d_mvl/scene_lists/scene_list__testing_set.json
     train_scene_list: ${datasets.mvl_root}/hm3d_mvl/scene_lists/scene_list__training_set.json
+    scene_list: ${datasets.hm3d_mvl.test_scene_list}
     resolution: [512, 1024]
 
   mp3d_fpe_mvl: 
@@ -22,7 +23,7 @@ datasets:
     labels_dir: ${datasets.mvl_root_challenge}/mvl_challenge_dataset/labels/gt
     test_scene_list: ${datasets.mvl_root}/mp3d_fpe/scene_lists/scene_list__testing_set.json
     train_scene_list: ${datasets.mvl_root}/mp3d_fpe/scene_lists/scene_list__training_set.json
-
+    scene_list: ${datasets.mp3d_fpe_mvl.test_scene_list}
     resolution: [512, 1024]
 
   zind_mvl:
@@ -32,5 +33,6 @@ datasets:
     labels_dir: ${datasets.zind_root}/labels/layout_raw
     test_scene_list: ${datasets.zind_root}/scene_lists/scene_list__testing_set.json
     train_scene_list: ${datasets.zind_root}/scene_lists/scene_list__training_set.json
+    scene_list: ${datasets.zind_mvl.test_scene_list}
     resolution: [512, 1024]
 
