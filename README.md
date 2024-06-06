@@ -11,6 +11,6 @@ cd layout_models
 git submodule update --init --recursive
 ```
 
-## Tags
+## Versions
 
-* **2023.12.26:** Version used for MLC++ CVPR'24 paper submission.
+* `v1.0`: Version used for Ray-casting Pseudo-labeling for ECCV'24 paper submission.
