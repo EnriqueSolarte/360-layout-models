@@ -15,15 +15,17 @@ from geometry_perception_utils.io_utils import check_file_exist
 from geometry_perception_utils.spherical_utils import phi_coords2xyz
 from omegaconf import OmegaConf
 
+
 class MVLDataLoader(data.Dataset):
     '''
     Dataloader that handles MLV dataset format.
     '''
+
     def __init__(self, cfg):
         assert "mvl" in cfg.data.dataset_name, f"Wrong Dataset name: {cfg.data.dataset_name}"
         self.cfg = cfg
         [setattr(self, key, val) for key, val in cfg.items()]
-        
+
         # ! List of scenes defined in a list file
         if self.data.get('scene_list', '') == '':
             # ! Reading from available labels data
@@ -39,7 +41,7 @@ class MVLDataLoader(data.Dataset):
             self.list_frames = [
                 item for sublist in self.list_frames for item in sublist
             ]
-            
+
         logging.info(f"Seed: {self.seed}")
         np.random.seed(self.seed)
         if self.size < 0:
@@ -50,7 +52,7 @@ class MVLDataLoader(data.Dataset):
             # fraction of data
             np.random.shuffle(self.list_frames)
             self.selected_fr = self.list_frames[:int(self.size *
-                                              self.list_frames.__len__())]
+                                                     self.list_frames.__len__())]
         else:
             # exact number of data
             np.random.shuffle(self.list_frames)
@@ -64,19 +66,21 @@ class MVLDataLoader(data.Dataset):
         self.img_dir = self.data.img_dir
         self.labels_dir = self.data.labels_dir
         self.geom_info_dir = self.data.geometry_info_dir
-              
+
         self.list_imgs = []
         self.list_labels = []
         self.list_geo_info_fn = []
-        
+
         [(self.list_imgs.append(os.path.join(self.img_dir, f"{scene}")),
-          self.list_labels.append(os.path.join(self.labels_dir, f"{scene}")), 
-          self.list_geo_info_fn.append(os.path.join(self.geom_info_dir, f"{scene}.json"))
+          self.list_labels.append(os.path.join(self.labels_dir, f"{scene}")),
+          self.list_geo_info_fn.append(os.path.join(
+              self.geom_info_dir, f"{scene}.json"))
           )
          for scene in self.selected_fr]
         logging.info(
             f"MVLDataLoader initialized with: \n\n{OmegaConf.to_yaml(self.data)}")
-        logging.info(f"Total data in this dataloader: {self.selected_fr.__len__()}")
+        logging.info(
+            f"Total data in this dataloader: {self.selected_fr.__len__()}")
 
     def __len__(self):
         return self.selected_fr.__len__()
@@ -106,15 +110,14 @@ class MVLDataLoader(data.Dataset):
 
     def get_geometry_info(self, idx):
         geometry_info_fn = self.list_geo_info_fn[idx]
-        
-        
+
     def __getitem__(self, idx):
         # ! iteration per each self.data given a idx
-        
+
         img = self.get_image(idx)
         label = self.get_label(idx)
-        geometry_info = self.get_geometry_info(idx)        
-    
+        geometry_info = self.get_geometry_info(idx)
+
         # * Process label and std
         if label.shape[0] == 4:
             # ! Then labels were computed as like 360-mlc [4, 1024]
@@ -129,7 +132,7 @@ class MVLDataLoader(data.Dataset):
             std = np.ones([2, label.shape[1]])
         else:
             raise ValueError(f"Unexpected Label Shape: {label.shape}")
-            
+
         # Random flip
         if self.cfg.get('flip', False) and np.random.randint(2) == 0:
             img = np.flip(img, axis=1)

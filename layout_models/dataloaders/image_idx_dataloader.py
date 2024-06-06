@@ -18,4 +18,3 @@ class ImageIdxDataloader(data.Dataset):
         img = np.array(Image.open(image_fn), np.float32)[..., :3] / 255.0
         x = torch.FloatTensor(img.transpose([2, 0, 1]).copy())
         return dict(images=x, idx=self.data[idx][1])
-

@@ -16,10 +16,10 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
 from copy import deepcopy
 from pathlib import Path
-    
+
 
 class WrapperLGTNet:
-    def __init__(self,cfg):
+    def __init__(self, cfg):
         self.cfg = cfg
         self.set_lgt_net_path()
         from layout_models.models.LGTNet.models.build import build_model
@@ -33,17 +33,17 @@ class WrapperLGTNet:
         )
 
         # Loaded trained model
-        #assert os.path.isfile(cfg.CKPT.DIR), f"Not found {cfg.CKPT.DIR}"
+        # assert os.path.isfile(cfg.CKPT.DIR), f"Not found {cfg.CKPT.DIR}"
         self.logger.info("Loading LGTNet...")
         model, _, _, _ = build_model(cfg, self.logger)
         self.net = model
         self.logger.info(f"ckpt: {cfg.CKPT.DIR}")
         self.logger.info("LGTNet Wrapper Successfully initialized")
-        
+
     @staticmethod
     def set_lgt_net_path():
         ROOT_DIR = Path(os.path.abspath(__file__)).parent.parent
-        
+
         lgt_dir = os.path.join(ROOT_DIR, "models", "LGTNet")
         if lgt_dir not in sys.path:
             assert os.path.isdir(lgt_dir), f"Not found {lgt_dir}"
@@ -67,11 +67,13 @@ class WrapperLGTNet:
         evaluated_data = {}
         for x in tqdm(layout_dataloader, desc=f"Estimating layout..."):
             with torch.no_grad():
-                y_bon_est_cpu = np.zeros((self.cfg.runners.mvl.batch_size,2,1024))
+                y_bon_est_cpu = np.zeros(
+                    (self.cfg.runners.mvl.batch_size, 2, 1024))
                 dt = self.net(x["images"].to(self.device))
-                #pdb.set_trace()
+                # pdb.set_trace()
                 if self.cfg.post_processing != 'original':
-                    dt['processed_xyz'] = post_process(tensor2np(dt['depth']), type_name=self.cfg.post_processing)
+                    dt['processed_xyz'] = post_process(
+                        tensor2np(dt['depth']), type_name=self.cfg.post_processing)
                 dt_np = tensor2np_d(dt)
                 for i in range(len(dt_np['depth'])):
                     dt_depth = dt_np['depth'][i]
@@ -79,34 +81,47 @@ class WrapperLGTNet:
                     dt_ratio = dt_np['ratio'][i][0]
                     if 'processed_xyz' in dt:
                         dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt['processed_xyz'][i], step=None, visible=False,
-                                            length=1024)
-                        #dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                        #dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
+                                                           length=1024)
+                        # dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
+                        # dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
                         dt_ceiling = uv2pixel(dt_boundaries[1])
                         dt_floor = uv2pixel(dt_boundaries[0])
                         if len(dt_ceiling) != 1024 or len(dt_floor) != 1024:
-                            dt_ceiling_index = np.unique(dt_ceiling[:,0], return_index=True) # C_XY[:,0] non repeat index
-                            dt_floor_index = np.unique(dt_floor[:,0], return_index=True) # F_XY[:,0] non repeat index
-                            dt_ceiling_pixel = np.transpose(dt_ceiling[dt_ceiling_index[1],:])
-                            dt_floor_pixel = np.transpose(dt_floor[dt_floor_index[1],:])
-                            dt_ceiling_pixel = complementary_element(dt_ceiling_pixel, [512,1024])
-                            dt_floor_pixel = complementary_element(dt_floor_pixel, [512,1024])
+                            # C_XY[:,0] non repeat index
+                            dt_ceiling_index = np.unique(
+                                dt_ceiling[:, 0], return_index=True)
+                            # F_XY[:,0] non repeat index
+                            dt_floor_index = np.unique(
+                                dt_floor[:, 0], return_index=True)
+                            dt_ceiling_pixel = np.transpose(
+                                dt_ceiling[dt_ceiling_index[1], :])
+                            dt_floor_pixel = np.transpose(
+                                dt_floor[dt_floor_index[1], :])
+                            dt_ceiling_pixel = complementary_element(
+                                dt_ceiling_pixel, [512, 1024])
+                            dt_floor_pixel = complementary_element(
+                                dt_floor_pixel, [512, 1024])
                         else:
                             dt_ceiling_pixel = np.transpose(dt_ceiling)[1]
                             dt_floor_pixel = np.transpose(dt_floor)[1]
-                        #pdb.set_trace()
+                        # pdb.set_trace()
 
                     else:
-                        dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
-                        dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                        dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
-                    
-                    y_bon_est_cpu[i,0,:] = dt_ceiling_pixel
-                    y_bon_est_cpu[i,1,:] = dt_floor_pixel
-                y_bon_est = torch.tensor((y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
+                        dt_boundaries = corners2boundaries(
+                            dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
+                        dt_ceiling_pixel = np.transpose(
+                            uv2pixel(dt_boundaries[1]))[1]
+                        dt_floor_pixel = np.transpose(
+                            uv2pixel(dt_boundaries[0]))[1]
+
+                    y_bon_est_cpu[i, 0, :] = dt_ceiling_pixel
+                    y_bon_est_cpu[i, 1, :] = dt_floor_pixel
+                y_bon_est = torch.tensor(
+                    (y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
             for y_, idx in zip(y_bon_est.cpu(), x["idx"]):
                 evaluated_data[idx] = y_
-        [ly.set_phi_coords(phi_coords=evaluated_data[ly.idx]) for ly in list_ly]
+        [ly.set_phi_coords(phi_coords=evaluated_data[ly.idx])
+         for ly in list_ly]
 
     def valid_iou_loop(self, only_val=False):
         from mvl_challenge.models.LGTNET.postprocessing.post_process import post_process
@@ -124,11 +139,12 @@ class WrapperLGTNet:
             u_range = u_range.int()
             eval_range = eval_range.int()
             with torch.no_grad():
-                y_bon_est_cpu = np.zeros((y_bon_ref.size(dim=0),2,1024))
+                y_bon_est_cpu = np.zeros((y_bon_ref.size(dim=0), 2, 1024))
                 dt = self.net(x.to(self.device))
-                #pdb.set_trace()
+                # pdb.set_trace()
                 if self.cfg.post_processing != 'original':
-                    dt['processed_xyz'] = post_process(tensor2np(dt['depth']), type_name=self.cfg.post_processing)
+                    dt['processed_xyz'] = post_process(
+                        tensor2np(dt['depth']), type_name=self.cfg.post_processing)
                 dt_np = tensor2np_d(dt)
                 for i in range(len(dt_np['depth'])):
                     dt_depth = dt_np['depth'][i]
@@ -136,44 +152,56 @@ class WrapperLGTNet:
                     dt_ratio = dt_np['ratio'][i][0]
                     if 'processed_xyz' in dt:
                         dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt['processed_xyz'][i], step=None, visible=False,
-                                            length=1024)
-                        #dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                        #dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
+                                                           length=1024)
+                        # dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
+                        # dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
                         dt_ceiling = uv2pixel(dt_boundaries[1])
                         dt_floor = uv2pixel(dt_boundaries[0])
                         if len(dt_ceiling) != 1024 or len(dt_floor) != 1024:
-                            dt_ceiling_index = np.unique(dt_ceiling[:,0], return_index=True) # C_XY[:,0] non repeat index
-                            dt_floor_index = np.unique(dt_floor[:,0], return_index=True) # F_XY[:,0] non repeat index
-                            dt_ceiling_pixel = np.transpose(dt_ceiling[dt_ceiling_index[1],:])
-                            dt_floor_pixel = np.transpose(dt_floor[dt_floor_index[1],:])
-                            dt_ceiling_pixel = complementary_element(dt_ceiling_pixel, [512,1024])
-                            dt_floor_pixel = complementary_element(dt_floor_pixel, [512,1024])
+                            # C_XY[:,0] non repeat index
+                            dt_ceiling_index = np.unique(
+                                dt_ceiling[:, 0], return_index=True)
+                            # F_XY[:,0] non repeat index
+                            dt_floor_index = np.unique(
+                                dt_floor[:, 0], return_index=True)
+                            dt_ceiling_pixel = np.transpose(
+                                dt_ceiling[dt_ceiling_index[1], :])
+                            dt_floor_pixel = np.transpose(
+                                dt_floor[dt_floor_index[1], :])
+                            dt_ceiling_pixel = complementary_element(
+                                dt_ceiling_pixel, [512, 1024])
+                            dt_floor_pixel = complementary_element(
+                                dt_floor_pixel, [512, 1024])
                         else:
                             dt_ceiling_pixel = np.transpose(dt_ceiling)[1]
                             dt_floor_pixel = np.transpose(dt_floor)[1]
-                        #pdb.set_trace()
+                        # pdb.set_trace()
 
                     else:
-                        dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
-                        dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                        dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
-                    
-                    y_bon_est_cpu[i,0,:] = dt_ceiling_pixel
-                    y_bon_est_cpu[i,1,:] = dt_floor_pixel
-                y_bon_est = torch.tensor((y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
-                #pdb.set_trace()
+                        dt_boundaries = corners2boundaries(
+                            dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
+                        dt_ceiling_pixel = np.transpose(
+                            uv2pixel(dt_boundaries[1]))[1]
+                        dt_floor_pixel = np.transpose(
+                            uv2pixel(dt_boundaries[0]))[1]
+
+                    y_bon_est_cpu[i, 0, :] = dt_ceiling_pixel
+                    y_bon_est_cpu[i, 1, :] = dt_floor_pixel
+                y_bon_est = torch.tensor(
+                    (y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
+                # pdb.set_trace()
 
                 true_eval = {"2DIoU": [], "3DIoU": []}
                 for gt, est, ind, e_ind in zip(y_bon_ref.cpu().numpy(), y_bon_est.cpu().numpy(), u_range.cpu().numpy(), eval_range.cpu().numpy()):
-                    eval_2d3d_iuo_from_tensors(est[None], gt[None], true_eval, e_ind)
-
+                    eval_2d3d_iuo_from_tensors(
+                        est[None], gt[None], true_eval, e_ind)
 
                 if ind[1] == 0:
-                    loss=compute_weighted_L1(y_bon_est.to(
-                            self.device), y_bon_ref.to(self.device), std.to(self.device))
+                    loss = compute_weighted_L1(y_bon_est.to(
+                        self.device), y_bon_ref.to(self.device), std.to(self.device))
                 else:
-                    loss=compute_weighted_L1(y_bon_est[:,ind[0]:(ind[1]+1)].to(
-                            self.device), y_bon_ref[:,ind[0]:(ind[1]+1)].to(self.device), std[:,ind[0]:(ind[1]+1)].to(self.device))
+                    loss = compute_weighted_L1(y_bon_est[:, ind[0]:(ind[1]+1)].to(
+                        self.device), y_bon_ref[:, ind[0]:(ind[1]+1)].to(self.device), std[:, ind[0]:(ind[1]+1)].to(self.device))
 
                 local_eval = dict(
                     loss=loss,
@@ -196,10 +224,12 @@ class WrapperLGTNet:
                 (len(iterator_valid_iou) - invalid_cnt)
             curr_score_3d_iou = total_eval["3DIoU"] / scaler_value
             curr_score_2d_iou = total_eval["2DIoU"] / scaler_value
-            self.logger.info(f"3D-IoU score(ceiling 2Diou in pp): {curr_score_3d_iou:.4f}")
-            self.logger.info(f"2D-IoU score(floor 2Diou in pp): {curr_score_2d_iou:.4f}")
+            self.logger.info(
+                f"3D-IoU score(ceiling 2Diou in pp): {curr_score_3d_iou:.4f}")
+            self.logger.info(
+                f"2D-IoU score(floor 2Diou in pp): {curr_score_2d_iou:.4f}")
             return {"2D-IoU": curr_score_2d_iou, "3D-IoU": curr_score_3d_iou}
-        
+
         scaler_value = self.cfg.runners.valid_iou.batch_size * \
             (len(iterator_valid_iou) - invalid_cnt)
         '''
@@ -238,13 +268,13 @@ class WrapperLGTNet:
                 self.logger.info(
                     f"New 3D-IoU Best Score {curr_score_3d_iou: 0.4f}")
                 self.best_scores["best_iou_valid_score"]['best_3d_iou_score'] = curr_score_3d_iou
-                #self.save_model("best_3d_iou_valid.pth")
+                # self.save_model("best_3d_iou_valid.pth")
 
             if best_2d_iou_score < curr_score_2d_iou:
                 self.logger.info(
                     f"New 2D-IoU Best Score {curr_score_2d_iou: 0.4f}")
                 self.best_scores["best_iou_valid_score"]['best_2d_iou_score'] = curr_score_2d_iou
-                #self.save_model("best_2d_iou_valid.pth")
+                # self.save_model("best_2d_iou_valid.pth")
 
     def save_model(self, filename):
         if not self.cfg.model.get("save_ckpt", True):
@@ -263,16 +293,16 @@ class WrapperLGTNet:
         )
         torch.save(state_dict, os.path.join(
             self.dir_ckpt, filename))
-        
+
     def prepare_for_training(self):
-        #self.is_training = True
+        # self.is_training = True
         self.current_epoch = 0
         self.iterations = 0
         self.best_scores = dict()
         self.curr_scores = dict()
-        #self.set_optimizer()
-        #self.set_scheduler()
-        #self.set_train_dataloader()
+        # self.set_optimizer()
+        # self.set_scheduler()
+        # self.set_train_dataloader()
         self.set_log_dir()
         save_cfg(os.path.join(self.dir_ckpt, 'cfg.yaml'), self.cfg)
 
@@ -289,18 +319,19 @@ class WrapperLGTNet:
         self.logger.info("Setting IoU Validation Dataloader")
         self.valid_iou_loader = DataLoader(
             MVLDataLoader(self.cfg.runners.valid_iou),
-            #MVLDataLoader(self.cfg.runners.train),
+            # MVLDataLoader(self.cfg.runners.train),
             batch_size=self.cfg.runners.valid_iou.batch_size,
             shuffle=False,
             drop_last=False,
             num_workers=self.cfg.runners.valid_iou.num_workers,
             pin_memory=True if self.device != 'cpu' else False,
             worker_init_fn=lambda x: np.random.seed())
-        
+
     def set_valid_dataloader_lsun(self):
         self.logger.info("Setting IoU Validation Dataloader")
-        #lsun_dataset = LSUNDataset(self.cfg.mvl_dir, 'validation', [512, 512], False)
-        lsun_dataset = LSUNPreprocDataset(self.cfg.mvl_dir, 'validation', [256, 256], False)
+        # lsun_dataset = LSUNDataset(self.cfg.mvl_dir, 'validation', [512, 512], False)
+        lsun_dataset = LSUNPreprocDataset(
+            self.cfg.mvl_dir, 'validation', [256, 256], False)
         print('lsun_dataset_val:', len(lsun_dataset))
         self.valid_iou_loader = DataLoader(
             lsun_dataset,
@@ -310,10 +341,11 @@ class WrapperLGTNet:
             num_workers=self.cfg.runners.valid_iou.num_workers,
             pin_memory=True if self.device != 'cpu' else False,
             worker_init_fn=lambda x: np.random.seed())
-        
+
     def set_valid_dataloader_mp3d_layout(self):
         self.logger.info("Setting IoU Validation Dataloader")
-        mp3d_layout_dataset = Matterport3Dlayoutdataset(subset='validation', root_dir=self.cfg.mvl_dir)
+        mp3d_layout_dataset = Matterport3Dlayoutdataset(
+            subset='validation', root_dir=self.cfg.mvl_dir)
         print('mp3d_dataset_val:', len(mp3d_layout_dataset))
         self.valid_iou_loader = DataLoader(
             mp3d_layout_dataset,
@@ -323,21 +355,22 @@ class WrapperLGTNet:
             num_workers=self.cfg.runners.valid_iou.num_workers,
             pin_memory=True if self.device != 'cpu' else False,
             worker_init_fn=lambda x: np.random.seed())
-    
+
     def set_multi_valid_dataloader_mp3d(self, mp3d_yaml_dir):
         self.logger.info("Setting IoU Validation Dataloader")
-        #MVL_dataset = MVLDataLoader(self.cfg.runners.valid_iou)
-        #MVL_dataset = MVLDataLoader(self.cfg.runners.train)
-        #print('MVL_dataset_val:', len(MVL_dataset))
-        with open(mp3d_yaml_dir, 'r') as f: config = yaml.load(f, Loader=yaml.FullLoader)
-        #mp3d_dataset = Matterport3DDataset(**config['dataset_args']['test'])
+        # MVL_dataset = MVLDataLoader(self.cfg.runners.valid_iou)
+        # MVL_dataset = MVLDataLoader(self.cfg.runners.train)
+        # print('MVL_dataset_val:', len(MVL_dataset))
+        with open(mp3d_yaml_dir, 'r') as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+        # mp3d_dataset = Matterport3DDataset(**config['dataset_args']['test'])
         mp3d_dataset = MP3Dcroppanodataset(**config['dataset_args']['val'])
         print('mp3d_dataset_val:', len(mp3d_dataset))
-        #concat_dataset = ConcatDataset([MVL_dataset, mp3d_dataset])
-        #print('concat_dataset_val:', len(concat_dataset))
+        # concat_dataset = ConcatDataset([MVL_dataset, mp3d_dataset])
+        # print('concat_dataset_val:', len(concat_dataset))
 
         self.valid_iou_loader = DataLoader(
-            #concat_dataset,
+            # concat_dataset,
             mp3d_dataset,
             batch_size=self.cfg.runners.valid_iou.batch_size,
             shuffle=False,
@@ -345,11 +378,11 @@ class WrapperLGTNet:
             num_workers=self.cfg.runners.valid_iou.num_workers,
             pin_memory=True if self.device != 'cpu' else False,
             worker_init_fn=lambda x: np.random.seed())
-    
+
     def set_multi_valid_dataloader(self):
         self.logger.info("Setting IoU Validation Dataloader")
         MVL_dataset = MVLDataLoader(self.cfg.runners.valid_iou)
-        #MVL_dataset = MVLDataLoader(self.cfg.runners.train)
+        # MVL_dataset = MVLDataLoader(self.cfg.runners.train)
         MVL_dataset_2 = MVLDataLoader(self.cfg.runners.valid_iou_2)
         print('MVL_dataset_val:', len(MVL_dataset))
         print('MVL_dataset_val:', len(MVL_dataset_2))
@@ -381,9 +414,9 @@ class WrapperLGTNet:
         output_dir = os.path.join(self.cfg.output_dir, self.cfg.id_exp)
         self.logger.info(f"Output directory: {output_dir}")
         dst_dir = output_dir + '/inference_img'
-        #dst_dir_gt = dst_dir + '/gt/'
+        # dst_dir_gt = dst_dir + '/gt/'
         dst_dir_est = dst_dir + '/predict/'
-        #pathlib.Path(dst_dir_gt).mkdir(parents=True, exist_ok=True)
+        # pathlib.Path(dst_dir_gt).mkdir(parents=True, exist_ok=True)
         pathlib.Path(dst_dir_est).mkdir(parents=True, exist_ok=True)
         image_fn = self.cfg.mvl_dir + '/img'
 
@@ -391,10 +424,11 @@ class WrapperLGTNet:
             x, y_bon_ref, std = next(iterator_valid_iou)
 
             with torch.no_grad():
-                y_bon_est_cpu = np.zeros((y_bon_ref.size(dim=0),2,1024))
+                y_bon_est_cpu = np.zeros((y_bon_ref.size(dim=0), 2, 1024))
                 dt = self.net(x.to(self.device))
                 if self.cfg.post_processing != 'original':
-                    dt['processed_xyz'] = post_process(tensor2np(dt['depth']), type_name=self.cfg.post_processing)
+                    dt['processed_xyz'] = post_process(
+                        tensor2np(dt['depth']), type_name=self.cfg.post_processing)
                 dt_np = tensor2np_d(dt)
                 for i in range(len(dt_np['depth'])):
                     dt_depth = dt_np['depth'][i]
@@ -402,68 +436,83 @@ class WrapperLGTNet:
                     dt_ratio = dt_np['ratio'][i][0]
                     if 'processed_xyz' in dt:
                         dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt['processed_xyz'][i], step=None, visible=False,
-                                            length=1024)
-                        #dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                        #dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
+                                                           length=1024)
+                        # dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
+                        # dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
                         dt_ceiling = uv2pixel(dt_boundaries[1])
                         dt_floor = uv2pixel(dt_boundaries[0])
                         if len(dt_ceiling) != 1024 or len(dt_floor) != 1024:
-                            dt_ceiling_index = np.unique(dt_ceiling[:,0], return_index=True) # C_XY[:,0] non repeat index
-                            dt_floor_index = np.unique(dt_floor[:,0], return_index=True) # F_XY[:,0] non repeat index
-                            dt_ceiling_pixel = np.transpose(dt_ceiling[dt_ceiling_index[1],:])
-                            dt_floor_pixel = np.transpose(dt_floor[dt_floor_index[1],:])
-                            dt_ceiling_pixel = complementary_element(dt_ceiling_pixel, [512,1024])
-                            dt_floor_pixel = complementary_element(dt_floor_pixel, [512,1024])
+                            # C_XY[:,0] non repeat index
+                            dt_ceiling_index = np.unique(
+                                dt_ceiling[:, 0], return_index=True)
+                            # F_XY[:,0] non repeat index
+                            dt_floor_index = np.unique(
+                                dt_floor[:, 0], return_index=True)
+                            dt_ceiling_pixel = np.transpose(
+                                dt_ceiling[dt_ceiling_index[1], :])
+                            dt_floor_pixel = np.transpose(
+                                dt_floor[dt_floor_index[1], :])
+                            dt_ceiling_pixel = complementary_element(
+                                dt_ceiling_pixel, [512, 1024])
+                            dt_floor_pixel = complementary_element(
+                                dt_floor_pixel, [512, 1024])
                         else:
                             dt_ceiling_pixel = np.transpose(dt_ceiling)[1]
                             dt_floor_pixel = np.transpose(dt_floor)[1]
-                        #pdb.set_trace()
+                        # pdb.set_trace()
 
                     else:
-                        dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
-                        dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                        dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
-                    
-                    y_bon_est_cpu[i,0,:] = dt_ceiling_pixel
-                    y_bon_est_cpu[i,1,:] = dt_floor_pixel
-                y_bon_est = torch.tensor((y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
+                        dt_boundaries = corners2boundaries(
+                            dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
+                        dt_ceiling_pixel = np.transpose(
+                            uv2pixel(dt_boundaries[1]))[1]
+                        dt_floor_pixel = np.transpose(
+                            uv2pixel(dt_boundaries[0]))[1]
+
+                    y_bon_est_cpu[i, 0, :] = dt_ceiling_pixel
+                    y_bon_est_cpu[i, 1, :] = dt_floor_pixel
+                y_bon_est = torch.tensor(
+                    (y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
                 for gt, est in zip(y_bon_ref.cpu().numpy(), y_bon_est.cpu().numpy()):
                     img_name = next(iter_list_frame)
                     img_path = image_fn + '/' + img_name
                     if os.path.exists(img_path + '.jpg'):
                         img_path = img_path + '.jpg'
-                        img = read_image(img_path,[512,1024])*255
+                        img = read_image(img_path, [512, 1024])*255
                         img_c = img.copy()
                         img_name = img_name + '.jpg'
                     elif os.path.exists(img_path + '.png'):
                         img_path = img_path + '.png'
-                        img = read_image(img_path,[512,1024])*255
+                        img = read_image(img_path, [512, 1024])*255
                         img_c = img.copy()
                         img_name = img_name + '.png'
                     gt_pixel = ((gt/np.pi + 0.5)*img.shape[0]).round()
                     est_pixel = ((est/np.pi + 0.5)*img.shape[0]).round()
-                    v_x = np.linspace(0, img.shape[1] - 1, img.shape[1]).astype(int)
+                    v_x = np.linspace(
+                        0, img.shape[1] - 1, img.shape[1]).astype(int)
 
-                    gt_pixel_ceiling = np.vstack((v_x, gt_pixel[0])).transpose()
-                    #pdb.set_trace()
-                    plotXY(img, gt_pixel_ceiling, color=(255,0,0))
+                    gt_pixel_ceiling = np.vstack(
+                        (v_x, gt_pixel[0])).transpose()
+                    # pdb.set_trace()
+                    plotXY(img, gt_pixel_ceiling, color=(255, 0, 0))
                     gt_pixel_floor = np.vstack((v_x, gt_pixel[1])).transpose()
-                    plotXY(img, gt_pixel_floor, color=(255,0,0))
+                    plotXY(img, gt_pixel_floor, color=(255, 0, 0))
 
-                    est_pixel_ceiling = np.vstack((v_x, est_pixel[0])).transpose()
-                    plotXY(img, est_pixel_ceiling, color=(255,160,0))
-                    #(255,255,0) yellow
-                    #(0,255,255) blue
-                    #(0,255,0) green
-                    #(255,160,0) orange
-                    #plotXY(img, est_pixel_ceiling, color=(0,0,255))
-                    est_pixel_floor = np.vstack((v_x, est_pixel[1])).transpose()
-                    plotXY(img, est_pixel_floor, color=(255,160,0))
-                    #plotXY(img, est_pixel_floor, color=(0,0,255))
+                    est_pixel_ceiling = np.vstack(
+                        (v_x, est_pixel[0])).transpose()
+                    plotXY(img, est_pixel_ceiling, color=(255, 160, 0))
+                    # (255,255,0) yellow
+                    # (0,255,255) blue
+                    # (0,255,0) green
+                    # (255,160,0) orange
+                    # plotXY(img, est_pixel_ceiling, color=(0,0,255))
+                    est_pixel_floor = np.vstack(
+                        (v_x, est_pixel[1])).transpose()
+                    plotXY(img, est_pixel_floor, color=(255, 160, 0))
+                    # plotXY(img, est_pixel_floor, color=(0,0,255))
 
-                    
-                    imwrite(dst_dir_est+img_name,(img).astype(np.uint8))
-                    #imwrite(dst_dir_est+img_name,(img_c).astype(np.uint8))
+                    imwrite(dst_dir_est+img_name, (img).astype(np.uint8))
+                    # imwrite(dst_dir_est+img_name,(img_c).astype(np.uint8))
 
     def plot_predict_and_gt_mp3d(self):
         print_cfg_information(self.cfg)
@@ -472,47 +521,51 @@ class WrapperLGTNet:
         output_dir = os.path.join(self.cfg.output_dir, self.cfg.id_exp)
         self.logger.info(f"Output directory: {output_dir}")
         dst_dir_est = output_dir + '/inference_img/'
-        #dst_dir_gt = dst_dir + '/gt/'
-        #pathlib.Path(dst_dir_gt).mkdir(parents=True, exist_ok=True)
+        # dst_dir_gt = dst_dir + '/gt/'
+        # pathlib.Path(dst_dir_gt).mkdir(parents=True, exist_ok=True)
         pathlib.Path(dst_dir_est).mkdir(parents=True, exist_ok=True)
         i = 0
 
         for _ in trange(len(iterator_valid_iou), desc="plot image epoch %d" % self.current_epoch):
-            #x, y_bon_ref, std = next(iterator_valid_iou)
+            # x, y_bon_ref, std = next(iterator_valid_iou)
             x, y_bon_ref, std, u_range, eval_range = next(iterator_valid_iou)
             with torch.no_grad():
-                y_bon_est_cpu = np.zeros((y_bon_ref.size(dim=0),2,1024))
+                y_bon_est_cpu = np.zeros((y_bon_ref.size(dim=0), 2, 1024))
                 dt = self.net(x.to(self.device))
-                
+
                 y_bon_est = self.predict_to_phi_coords(dt)
                 for image, gt, est in zip(x, y_bon_ref, y_bon_est):
                     img = image.detach().cpu().numpy().transpose([1, 2, 0])
                     img = (img.copy()*255).astype(np.uint8)
-                    #pdb.set_trace()
+                    # pdb.set_trace()
                     gt_pixel = ((gt/np.pi + 0.5)*img.shape[0]).round()
                     est_pixel = ((est/np.pi + 0.5)*img.shape[0]).round().cpu()
-                    v_x = np.linspace(0, img.shape[1] - 1, img.shape[1]).astype(int)
+                    v_x = np.linspace(
+                        0, img.shape[1] - 1, img.shape[1]).astype(int)
 
-                    gt_pixel_ceiling = np.vstack((v_x, gt_pixel[0])).transpose()
-                    #pdb.set_trace()
-                    plotXY(img, gt_pixel_ceiling, color=(255,0,0))
+                    gt_pixel_ceiling = np.vstack(
+                        (v_x, gt_pixel[0])).transpose()
+                    # pdb.set_trace()
+                    plotXY(img, gt_pixel_ceiling, color=(255, 0, 0))
                     gt_pixel_floor = np.vstack((v_x, gt_pixel[1])).transpose()
-                    plotXY(img, gt_pixel_floor, color=(255,0,0))
+                    plotXY(img, gt_pixel_floor, color=(255, 0, 0))
 
-                    est_pixel_ceiling = np.vstack((v_x, est_pixel[0])).transpose()
-                    plotXY(img, est_pixel_ceiling, color=(0,255,255))
-                    #(255,255,0) yellow
-                    #(0,255,255) blue
-                    #(0,255,0) green
-                    #(255,160,0) orange
-                    #plotXY(img, est_pixel_ceiling, color=(0,0,255))
-                    est_pixel_floor = np.vstack((v_x, est_pixel[1])).transpose()
-                    plotXY(img, est_pixel_floor, color=(0,255,255))
-                    #plotXY(img, est_pixel_floor, color=(0,0,255))
+                    est_pixel_ceiling = np.vstack(
+                        (v_x, est_pixel[0])).transpose()
+                    plotXY(img, est_pixel_ceiling, color=(0, 255, 255))
+                    # (255,255,0) yellow
+                    # (0,255,255) blue
+                    # (0,255,0) green
+                    # (255,160,0) orange
+                    # plotXY(img, est_pixel_ceiling, color=(0,0,255))
+                    est_pixel_floor = np.vstack(
+                        (v_x, est_pixel[1])).transpose()
+                    plotXY(img, est_pixel_floor, color=(0, 255, 255))
+                    # plotXY(img, est_pixel_floor, color=(0,0,255))
 
-                    
-                    imwrite(dst_dir_est+"img_%d.jpg"%i,(img).astype(np.uint8))
-                    i+=1
+                    imwrite(dst_dir_est+"img_%d.jpg" %
+                            i, (img).astype(np.uint8))
+                    i += 1
 
     def gt_est_pixel_error(self):
         from mvl_challenge.models.LGTNET.postprocessing.post_process import post_process
@@ -526,15 +579,16 @@ class WrapperLGTNet:
         floor_lonlat_error = np.array([0])
         ceiling_pixel_error = np.array([0])
         floor_pixel_error = np.array([0])
-        shape=[512,1024]
+        shape = [512, 1024]
         for _ in trange(len(iterator_valid_iou), desc="compute phi_coords_error %d" % self.current_epoch):
             x, y_bon_ref, std = next(iterator_valid_iou)
 
             with torch.no_grad():
-                y_bon_est_cpu = np.zeros((y_bon_ref.size(dim=0),2,1024))
+                y_bon_est_cpu = np.zeros((y_bon_ref.size(dim=0), 2, 1024))
                 dt = self.net(x.to(self.device))
                 if self.cfg.post_processing != 'original':
-                    dt['processed_xyz'] = post_process(tensor2np(dt['depth']), type_name=self.cfg.post_processing)
+                    dt['processed_xyz'] = post_process(
+                        tensor2np(dt['depth']), type_name=self.cfg.post_processing)
                 dt_np = tensor2np_d(dt)
                 for i in range(len(dt_np['depth'])):
                     dt_depth = dt_np['depth'][i]
@@ -542,75 +596,108 @@ class WrapperLGTNet:
                     dt_ratio = dt_np['ratio'][i][0]
                     if 'processed_xyz' in dt:
                         dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt['processed_xyz'][i], step=None, visible=False,
-                                            length=1024)
-                        #dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                        #dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
+                                                           length=1024)
+                        # dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
+                        # dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
                         dt_ceiling = uv2pixel(dt_boundaries[1])
                         dt_floor = uv2pixel(dt_boundaries[0])
                         if len(dt_ceiling) != 1024 or len(dt_floor) != 1024:
-                            dt_ceiling_index = np.unique(dt_ceiling[:,0], return_index=True) # C_XY[:,0] non repeat index
-                            dt_floor_index = np.unique(dt_floor[:,0], return_index=True) # F_XY[:,0] non repeat index
-                            dt_ceiling_pixel = np.transpose(dt_ceiling[dt_ceiling_index[1],:])
-                            dt_floor_pixel = np.transpose(dt_floor[dt_floor_index[1],:])
-                            dt_ceiling_pixel = complementary_element(dt_ceiling_pixel, [512,1024])
-                            dt_floor_pixel = complementary_element(dt_floor_pixel, [512,1024])
+                            # C_XY[:,0] non repeat index
+                            dt_ceiling_index = np.unique(
+                                dt_ceiling[:, 0], return_index=True)
+                            # F_XY[:,0] non repeat index
+                            dt_floor_index = np.unique(
+                                dt_floor[:, 0], return_index=True)
+                            dt_ceiling_pixel = np.transpose(
+                                dt_ceiling[dt_ceiling_index[1], :])
+                            dt_floor_pixel = np.transpose(
+                                dt_floor[dt_floor_index[1], :])
+                            dt_ceiling_pixel = complementary_element(
+                                dt_ceiling_pixel, [512, 1024])
+                            dt_floor_pixel = complementary_element(
+                                dt_floor_pixel, [512, 1024])
                         else:
                             dt_ceiling_pixel = np.transpose(dt_ceiling)[1]
                             dt_floor_pixel = np.transpose(dt_floor)[1]
-                        #pdb.set_trace()
+                        # pdb.set_trace()
 
                     else:
-                        dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
-                        dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                        dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
-                    
-                    y_bon_est_cpu[i,0,:] = dt_ceiling_pixel
-                    y_bon_est_cpu[i,1,:] = dt_floor_pixel
-                y_bon_est = torch.tensor((y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
+                        dt_boundaries = corners2boundaries(
+                            dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
+                        dt_ceiling_pixel = np.transpose(
+                            uv2pixel(dt_boundaries[1]))[1]
+                        dt_floor_pixel = np.transpose(
+                            uv2pixel(dt_boundaries[0]))[1]
+
+                    y_bon_est_cpu[i, 0, :] = dt_ceiling_pixel
+                    y_bon_est_cpu[i, 1, :] = dt_floor_pixel
+                y_bon_est = torch.tensor(
+                    (y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
                 for gt, est in zip(y_bon_ref, y_bon_est):
-                    est_pixel = torch.round((est/np.pi + 0.5)*shape[0]).int().to(self.device)
-                    gt_pixel = torch.round((gt/np.pi + 0.5)*shape[0]).int().to(self.device)
-                
-                    v_x = torch.linspace(0, shape[1]-1, shape[1]).int().to(self.device)
-                    #pdb.set_trace()
-                    gt_pixel_ceiling = torch.transpose(torch.vstack((v_x, gt_pixel[0])),0,1)
-                    gt_pixel_floor =  torch.transpose(torch.vstack((v_x, gt_pixel[1])),0,1)
-                    est_pixel_ceiling =  torch.transpose(torch.vstack((v_x, est_pixel[0])),0,1)
-                    est_pixel_floor =  torch.transpose(torch.vstack((v_x, est_pixel[1])),0,1)
+                    est_pixel = torch.round(
+                        (est/np.pi + 0.5)*shape[0]).int().to(self.device)
+                    gt_pixel = torch.round(
+                        (gt/np.pi + 0.5)*shape[0]).int().to(self.device)
 
-                    #gt_xyz_ceiling = XY2xyz(gt_pixel_ceiling, shape, mode='torch')
-                    gt_lonlat_ceiling = XY2lonlat(gt_pixel_ceiling, shape, mode='torch')
-                    #gt_xyz_floor = XY2xyz(gt_pixel_floor, shape, mode='torch')
-                    gt_lonlat_floor = XY2lonlat(gt_pixel_floor, shape, mode='torch')
+                    v_x = torch.linspace(
+                        0, shape[1]-1, shape[1]).int().to(self.device)
+                    # pdb.set_trace()
+                    gt_pixel_ceiling = torch.transpose(
+                        torch.vstack((v_x, gt_pixel[0])), 0, 1)
+                    gt_pixel_floor = torch.transpose(
+                        torch.vstack((v_x, gt_pixel[1])), 0, 1)
+                    est_pixel_ceiling = torch.transpose(
+                        torch.vstack((v_x, est_pixel[0])), 0, 1)
+                    est_pixel_floor = torch.transpose(
+                        torch.vstack((v_x, est_pixel[1])), 0, 1)
 
-                    #est_xyz_ceiling = XY2xyz(est_pixel_ceiling, shape, mode='torch')
-                    est_lonlat_ceiling = XY2lonlat(est_pixel_ceiling, shape, mode='torch')
-                    #est_xyz_floor = XY2xyz(est_pixel_floor, shape, mode='torch')
-                    est_lonlat_floor = XY2lonlat(est_pixel_floor, shape, mode='torch')
+                    # gt_xyz_ceiling = XY2xyz(gt_pixel_ceiling, shape, mode='torch')
+                    gt_lonlat_ceiling = XY2lonlat(
+                        gt_pixel_ceiling, shape, mode='torch')
+                    # gt_xyz_floor = XY2xyz(gt_pixel_floor, shape, mode='torch')
+                    gt_lonlat_floor = XY2lonlat(
+                        gt_pixel_floor, shape, mode='torch')
+
+                    # est_xyz_ceiling = XY2xyz(est_pixel_ceiling, shape, mode='torch')
+                    est_lonlat_ceiling = XY2lonlat(
+                        est_pixel_ceiling, shape, mode='torch')
+                    # est_xyz_floor = XY2xyz(est_pixel_floor, shape, mode='torch')
+                    est_lonlat_floor = XY2lonlat(
+                        est_pixel_floor, shape, mode='torch')
 
                     ceiling_each_error = torch.zeros((1024)).to(self.device)
                     floor_each_error = torch.zeros((1024)).to(self.device)
-                    
+
                     for i in range(v_x.size(dim=0)):
-                        ceiling_point_error = torch.norm(est_lonlat_ceiling[i] - gt_lonlat_ceiling[i])
-                        floor_point_error = torch.norm(est_lonlat_floor[i] - gt_lonlat_floor[i])
-                        #pdb.set_trace()
+                        ceiling_point_error = torch.norm(
+                            est_lonlat_ceiling[i] - gt_lonlat_ceiling[i])
+                        floor_point_error = torch.norm(
+                            est_lonlat_floor[i] - gt_lonlat_floor[i])
+                        # pdb.set_trace()
                         ceiling_each_error[i] = ceiling_point_error
                         floor_each_error[i] = floor_point_error
-                    avg_each_ceiling_pixel_error = np.mean(torch.abs(est_pixel_ceiling - gt_pixel_ceiling).cpu().numpy())
-                    avg_each_floor_pixel_error = np.mean(torch.abs(est_pixel_floor - gt_pixel_floor).cpu().numpy())
-                    avg_ceiling_lonlat_error = np.mean(ceiling_each_error[:].cpu().numpy())
-                    avg_floor_lonlat_error = np.mean(floor_each_error[:].cpu().numpy())    
-                    ceiling_pixel_error = np.append(ceiling_pixel_error,  avg_each_ceiling_pixel_error)
-                    floor_pixel_error = np.append(floor_pixel_error,  avg_each_floor_pixel_error)
-                    ceiling_lonlat_error = np.append(ceiling_lonlat_error,  avg_ceiling_lonlat_error)
-                    floor_lonlat_error = np.append(floor_lonlat_error,  avg_floor_lonlat_error)
+                    avg_each_ceiling_pixel_error = np.mean(
+                        torch.abs(est_pixel_ceiling - gt_pixel_ceiling).cpu().numpy())
+                    avg_each_floor_pixel_error = np.mean(
+                        torch.abs(est_pixel_floor - gt_pixel_floor).cpu().numpy())
+                    avg_ceiling_lonlat_error = np.mean(
+                        ceiling_each_error[:].cpu().numpy())
+                    avg_floor_lonlat_error = np.mean(
+                        floor_each_error[:].cpu().numpy())
+                    ceiling_pixel_error = np.append(
+                        ceiling_pixel_error,  avg_each_ceiling_pixel_error)
+                    floor_pixel_error = np.append(
+                        floor_pixel_error,  avg_each_floor_pixel_error)
+                    ceiling_lonlat_error = np.append(
+                        ceiling_lonlat_error,  avg_ceiling_lonlat_error)
+                    floor_lonlat_error = np.append(
+                        floor_lonlat_error,  avg_floor_lonlat_error)
                     pdb.set_trace()
         avg_ceiling_pixel_error = np.mean(ceiling_pixel_error[1:])
-        avg_floor_pixel_error = np.mean(floor_pixel_error[1:])        
+        avg_floor_pixel_error = np.mean(floor_pixel_error[1:])
         avg_ceiling_lonlat_error = np.mean(ceiling_lonlat_error[1:])/np.pi*180
         avg_floor_lonlat_error = np.mean(floor_lonlat_error[1:])/np.pi*180
-        #pdb.set_trace()
+        # pdb.set_trace()
         '''
         logging.info(
             f"ceiling pixel error: {avg_ceiling_pixel_error:.4f}")
@@ -627,8 +714,10 @@ class WrapperLGTNet:
         )
 
         if self.best_scores.get("best_pixel_error") is None:
-            self.logger.info(f"Best ceiling pixel error: {avg_ceiling_pixel_error:.4f}")
-            self.logger.info(f"Best floor pixel error: {avg_floor_pixel_error:.4f}")
+            self.logger.info(
+                f"Best ceiling pixel error: {avg_ceiling_pixel_error:.4f}")
+            self.logger.info(
+                f"Best floor pixel error: {avg_floor_pixel_error:.4f}")
             self.best_scores["best_pixel_error"] = dict(
                 best_ceiling_pixel_error=avg_ceiling_pixel_error,
                 best_floor_pixel_error=avg_floor_pixel_error
@@ -655,68 +744,87 @@ class WrapperLGTNet:
                 self.save_model("best_floor_pixel_error.pth")
 
     @torch.no_grad()
-    def predict_to_phi_coords(self,dt):
+    def predict_to_phi_coords(self, dt):
         from mvl_challenge.models.LGTNET.postprocessing.post_process import post_process
         from mvl_challenge.models.LGTNET.utils.misc import tensor2np_d, tensor2np
         from mvl_challenge.models.LGTNET.utils.conversion import depth2xyz, uv2pixel
         from mvl_challenge.models.LGTNET.utils.boundary import corners2boundaries
         if self.cfg.post_processing != 'original':
-            dt['processed_xyz'] = post_process(tensor2np(dt['depth']), type_name=self.cfg.post_processing)
+            dt['processed_xyz'] = post_process(
+                tensor2np(dt['depth']), type_name=self.cfg.post_processing)
         dt_np = tensor2np_d(dt)
-        y_bon_est_cpu = np.zeros((len(dt_np['depth']),2,1024))
+        y_bon_est_cpu = np.zeros((len(dt_np['depth']), 2, 1024))
         for i in range(len(dt_np['depth'])):
             dt_depth = dt_np['depth'][i]
             dt_xyz = depth2xyz(np.abs(dt_depth))
             dt_ratio = dt_np['ratio'][i][0]
             if 'processed_xyz' in dt:
                 dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt['processed_xyz'][i], step=None, visible=False,
-                                    length=1024)
-                #dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                #dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
+                                                   length=1024)
+                # dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
+                # dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
                 dt_ceiling = uv2pixel(dt_boundaries[1])
                 dt_floor = uv2pixel(dt_boundaries[0])
                 if len(dt_ceiling) != 1024 or len(dt_floor) != 1024:
-                    dt_ceiling_index = np.unique(dt_ceiling[:,0], return_index=True) # C_XY[:,0] non repeat index
-                    dt_floor_index = np.unique(dt_floor[:,0], return_index=True) # F_XY[:,0] non repeat index
-                    dt_ceiling_pixel = np.transpose(dt_ceiling[dt_ceiling_index[1],:])
-                    dt_floor_pixel = np.transpose(dt_floor[dt_floor_index[1],:])
-                    dt_ceiling_pixel = complementary_element(dt_ceiling_pixel, [512,1024])
-                    dt_floor_pixel = complementary_element(dt_floor_pixel, [512,1024])
+                    # C_XY[:,0] non repeat index
+                    dt_ceiling_index = np.unique(
+                        dt_ceiling[:, 0], return_index=True)
+                    # F_XY[:,0] non repeat index
+                    dt_floor_index = np.unique(
+                        dt_floor[:, 0], return_index=True)
+                    dt_ceiling_pixel = np.transpose(
+                        dt_ceiling[dt_ceiling_index[1], :])
+                    dt_floor_pixel = np.transpose(
+                        dt_floor[dt_floor_index[1], :])
+                    dt_ceiling_pixel = complementary_element(
+                        dt_ceiling_pixel, [512, 1024])
+                    dt_floor_pixel = complementary_element(
+                        dt_floor_pixel, [512, 1024])
                 else:
                     dt_ceiling_pixel = np.transpose(dt_ceiling)[1]
                     dt_floor_pixel = np.transpose(dt_floor)[1]
-                #pdb.set_trace()
+                # pdb.set_trace()
 
             else:
-                dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
-                #dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                #dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
+                dt_boundaries = corners2boundaries(
+                    dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
+                # dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
+                # dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
                 dt_ceiling = uv2pixel(dt_boundaries[1])
                 dt_floor = uv2pixel(dt_boundaries[0])
                 if len(dt_ceiling) != 1024 or len(dt_floor) != 1024:
-                    dt_ceiling_index = np.unique(dt_ceiling[:,0], return_index=True) # C_XY[:,0] non repeat index
-                    dt_floor_index = np.unique(dt_floor[:,0], return_index=True) # F_XY[:,0] non repeat index
-                    dt_ceiling_pixel = np.transpose(dt_ceiling[dt_ceiling_index[1],:])
-                    dt_floor_pixel = np.transpose(dt_floor[dt_floor_index[1],:])
-                    dt_ceiling_pixel = complementary_element(dt_ceiling_pixel, [512,1024])
-                    dt_floor_pixel = complementary_element(dt_floor_pixel, [512,1024])
+                    # C_XY[:,0] non repeat index
+                    dt_ceiling_index = np.unique(
+                        dt_ceiling[:, 0], return_index=True)
+                    # F_XY[:,0] non repeat index
+                    dt_floor_index = np.unique(
+                        dt_floor[:, 0], return_index=True)
+                    dt_ceiling_pixel = np.transpose(
+                        dt_ceiling[dt_ceiling_index[1], :])
+                    dt_floor_pixel = np.transpose(
+                        dt_floor[dt_floor_index[1], :])
+                    dt_ceiling_pixel = complementary_element(
+                        dt_ceiling_pixel, [512, 1024])
+                    dt_floor_pixel = complementary_element(
+                        dt_floor_pixel, [512, 1024])
                 else:
                     dt_ceiling_pixel = np.transpose(dt_ceiling)[1]
                     dt_floor_pixel = np.transpose(dt_floor)[1]
-            
-            y_bon_est_cpu[i,0,:] = dt_ceiling_pixel
-            y_bon_est_cpu[i,1,:] = dt_floor_pixel
-        y_bon_est = torch.tensor((y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
+
+            y_bon_est_cpu[i, 0, :] = dt_ceiling_pixel
+            y_bon_est_cpu[i, 1, :] = dt_floor_pixel
+        y_bon_est = torch.tensor(
+            (y_bon_est_cpu / 512 - 0.5) * np.pi).to(self.device)
 
         return y_bon_est
-    
+
     def save_predict(self):
         output_img_dir = "/media/Pluto/jonathan/mvl_toolkit/output_data/img/"
         output_label_dir = "/media/Pluto/jonathan/mvl_toolkit/output_data/label/"
         print_cfg_information(self.cfg)
         self.net.eval()
         iterator_valid_iou = iter(self.valid_iou_loader)
-        shape=[512,1024]
+        shape = [512, 1024]
         i = 0
         for _ in trange(len(iterator_valid_iou), desc="save_predict %d" % self.current_epoch):
             x, y_bon_ref, std = next(iterator_valid_iou)
@@ -725,86 +833,106 @@ class WrapperLGTNet:
                 dt = self.net(x.to(self.device))
                 y_bon_est = self.predict_to_phi_coords(dt)
                 for image, gt, est in zip(x, y_bon_ref, y_bon_est):
-                    est_pixel = torch.round((est/np.pi + 0.5)*shape[0]).int().cpu().numpy().tolist()
-                    #gt_pixel = torch.round((gt/np.pi + 0.5)*shape[0]).int().to(self.device)
-                    label = {"phi_coords" : est_pixel}
+                    est_pixel = torch.round(
+                        (est/np.pi + 0.5)*shape[0]).int().cpu().numpy().tolist()
+                    # gt_pixel = torch.round((gt/np.pi + 0.5)*shape[0]).int().to(self.device)
+                    label = {"phi_coords": est_pixel}
                     img = image.detach().cpu().numpy().transpose([1, 2, 0])
-                    imwrite(output_img_dir+"img_%s.jpg"%(str(i)),(img*255).astype(np.uint8))
-                    save_json_dict(output_label_dir + "label_%s.json"%(str(i)),label)
-                    i+=1
+                    imwrite(output_img_dir+"img_%s.jpg" %
+                            (str(i)), (img*255).astype(np.uint8))
+                    save_json_dict(output_label_dir +
+                                   "label_%s.json" % (str(i)), label)
+                    i += 1
 
     def plot_predict_pers(self):
         from mvl_challenge.models.LGTNET.postprocessing.post_process import post_process
         from mvl_challenge.models.LGTNET.utils.misc import tensor2np_d, tensor2np
         from mvl_challenge.models.LGTNET.utils.conversion import depth2xyz, uv2pixel
-        from mvl_challenge.models.LGTNET.utils.boundary import corners2boundaries                
+        from mvl_challenge.models.LGTNET.utils.boundary import corners2boundaries
         print_cfg_information(self.cfg)
         self.net.eval()
         src = '/media/Pluto/jonathan/mvl_toolkit/output_data/img'
         lst = sorted(glob.glob(src+'/*.png') + glob.glob(src+'/*.jpg'))
         dst_dir_est = '/media/Pluto/jonathan/mvl_toolkit/output_data/predict_pers'
         os.makedirs(dst_dir_est, exist_ok=True)
-        equi_shape = [512,640]
-        i=0
+        equi_shape = [512, 640]
+        i = 0
         for one in tqdm(lst[:20]):
-            img = read_image(one, [512,1024])
-            img = img[0:256,0:320,:]
-            img = cv2.resize(img, dsize=(640,512), interpolation=cv2.INTER_AREA)
-            x = torch.FloatTensor(img).permute(2, 0, 1)[None, ...].to(self.device)
+            img = read_image(one, [512, 1024])
+            img = img[0:256, 0:320, :]
+            img = cv2.resize(img, dsize=(640, 512),
+                             interpolation=cv2.INTER_AREA)
+            x = torch.FloatTensor(img).permute(
+                2, 0, 1)[None, ...].to(self.device)
 
             with torch.no_grad():
-                y_bon_est_cpu = np.zeros((2,equi_shape[1]))
+                y_bon_est_cpu = np.zeros((2, equi_shape[1]))
                 dt = self.net(x.to(self.device))
                 if self.cfg.post_processing != 'original':
-                    dt['processed_xyz'] = post_process(tensor2np(dt['depth']), type_name=self.cfg.post_processing)
+                    dt['processed_xyz'] = post_process(
+                        tensor2np(dt['depth']), type_name=self.cfg.post_processing)
                 dt_np = tensor2np_d(dt)
                 dt_depth = dt_np['depth'][0]
-                #depth1, depth2 = np.split(dt_np['depth'][0], 2)
-                #dt_depth = (depth1 + np.flip(depth2)) / 21
+                # depth1, depth2 = np.split(dt_np['depth'][0], 2)
+                # dt_depth = (depth1 + np.flip(depth2)) / 21
                 dt_xyz = depth2xyz(np.abs(dt_depth))
                 dt_ratio = dt_np['ratio'][0][0]
                 if 'processed_xyz' in dt:
                     dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt['processed_xyz'][0], step=None, visible=False,
-                                        length=equi_shape[1]*2)
-                    #dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                    #dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
-                    dt_ceiling = uv2pixel(dt_boundaries[1],w=equi_shape[1]*2)
-                    dt_floor = uv2pixel(dt_boundaries[0],w=equi_shape[1]*2)
+                                                       length=equi_shape[1]*2)
+                    # dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
+                    # dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
+                    dt_ceiling = uv2pixel(dt_boundaries[1], w=equi_shape[1]*2)
+                    dt_floor = uv2pixel(dt_boundaries[0], w=equi_shape[1]*2)
                     if len(dt_ceiling) != equi_shape[1]*2 or len(dt_floor) != equi_shape[1]*2:
-                        dt_ceiling_index = np.unique(dt_ceiling[:,0], return_index=True) # C_XY[:,0] non repeat index
-                        dt_floor_index = np.unique(dt_floor[:,0], return_index=True) # F_XY[:,0] non repeat index
-                        dt_ceiling_pixel = np.transpose(dt_ceiling[dt_ceiling_index[1],:])
-                        dt_floor_pixel = np.transpose(dt_floor[dt_floor_index[1],:])
-                        dt_ceiling_pixel = complementary_element(dt_ceiling_pixel, equi_shape)
-                        dt_floor_pixel = complementary_element(dt_floor_pixel, equi_shape)
+                        # C_XY[:,0] non repeat index
+                        dt_ceiling_index = np.unique(
+                            dt_ceiling[:, 0], return_index=True)
+                        # F_XY[:,0] non repeat index
+                        dt_floor_index = np.unique(
+                            dt_floor[:, 0], return_index=True)
+                        dt_ceiling_pixel = np.transpose(
+                            dt_ceiling[dt_ceiling_index[1], :])
+                        dt_floor_pixel = np.transpose(
+                            dt_floor[dt_floor_index[1], :])
+                        dt_ceiling_pixel = complementary_element(
+                            dt_ceiling_pixel, equi_shape)
+                        dt_floor_pixel = complementary_element(
+                            dt_floor_pixel, equi_shape)
                     else:
                         dt_ceiling_pixel = np.transpose(dt_ceiling)[1]
                         dt_floor_pixel = np.transpose(dt_floor)[1]
-                    #pdb.set_trace()
+                    # pdb.set_trace()
 
                 else:
-                    dt_boundaries = corners2boundaries(dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
-                    dt_ceiling_pixel = np.transpose(uv2pixel(dt_boundaries[1]))[1]
-                    dt_floor_pixel = np.transpose(uv2pixel(dt_boundaries[0]))[1]
-                
-                y_bon_est_cpu[0,:] = dt_ceiling_pixel[0:640]
-                y_bon_est_cpu[1,:] = dt_floor_pixel[0:640]
-                v_x = np.linspace(0, equi_shape[1] - 1, equi_shape[1]).astype(int)
-                est_pixel_ceiling = np.vstack((v_x, y_bon_est_cpu[0])).transpose()
-                plotXY(img, est_pixel_ceiling, color=(0,1,1))
-                #(255,255,0) yellow
-                #(0,255,255) blue
-                #(0,255,0) green
-                #(255,160,0) orange
-                #plotXY(img, est_pixel_ceiling, color=(0,0,255))
-                est_pixel_floor = np.vstack((v_x, y_bon_est_cpu[1])).transpose()
-                plotXY(img, est_pixel_floor, color=(0,1,1))
-                #plotXY(img, est_pixel_floor, color=(0,0,255))
+                    dt_boundaries = corners2boundaries(
+                        dt_ratio, corners_xyz=dt_xyz, step=None, visible=False, length=1024)
+                    dt_ceiling_pixel = np.transpose(
+                        uv2pixel(dt_boundaries[1]))[1]
+                    dt_floor_pixel = np.transpose(
+                        uv2pixel(dt_boundaries[0]))[1]
 
-                
-                imwrite(dst_dir_est+"/img_%d.jpg"%i,(img*255).astype(np.uint8))
-                i+=1
-    
+                y_bon_est_cpu[0, :] = dt_ceiling_pixel[0:640]
+                y_bon_est_cpu[1, :] = dt_floor_pixel[0:640]
+                v_x = np.linspace(
+                    0, equi_shape[1] - 1, equi_shape[1]).astype(int)
+                est_pixel_ceiling = np.vstack(
+                    (v_x, y_bon_est_cpu[0])).transpose()
+                plotXY(img, est_pixel_ceiling, color=(0, 1, 1))
+                # (255,255,0) yellow
+                # (0,255,255) blue
+                # (0,255,0) green
+                # (255,160,0) orange
+                # plotXY(img, est_pixel_ceiling, color=(0,0,255))
+                est_pixel_floor = np.vstack(
+                    (v_x, y_bon_est_cpu[1])).transpose()
+                plotXY(img, est_pixel_floor, color=(0, 1, 1))
+                # plotXY(img, est_pixel_floor, color=(0,0,255))
+
+                imwrite(dst_dir_est+"/img_%d.jpg" %
+                        i, (img*255).astype(np.uint8))
+                i += 1
+
     def plot_predict_and_gt_mp3d_layout(self):
         print_cfg_information(self.cfg)
         self.net.eval()
@@ -813,46 +941,52 @@ class WrapperLGTNet:
         self.logger.info(f"Output directory: {output_dir}")
         dst_dir_est = output_dir + '/inference_img/'
         pathlib.Path(dst_dir_est).mkdir(parents=True, exist_ok=True)
-        i=0
-        
-        equi_shape = [512,1024]
+        i = 0
+
+        equi_shape = [512, 1024]
         for _ in trange(len(iterator_valid_iou), desc="save_predict %d" % self.current_epoch):
             x, y_bon_ref, c_intrinsic, whole_map_ps = next(iterator_valid_iou)
-            
+
             w = x.size(dim=-1)
-            #'''
+            # '''
             with torch.no_grad():
                 dt = self.net(x.to(self.device))
                 y_bon_est = self.predict_to_phi_coords(dt)
                 for image, gt, est in zip(x, y_bon_ref, y_bon_est):
                     image = image.detach().cpu().numpy().transpose([1, 2, 0])
                     img = (image.copy()*255).astype(np.uint8)
-                    #pdb.set_trace()
+                    # pdb.set_trace()
                     gt_pixel = ((gt + 0.5)*img.shape[0]).round()
-                    #gt_pixel = gt
-                    est_pixel = ((est/np.pi + 0.5)*img.shape[0]).round().cpu().numpy()
-                    v_x = np.linspace(0, img.shape[1] - 1, img.shape[1]).astype(int)
+                    # gt_pixel = gt
+                    est_pixel = ((est/np.pi + 0.5) *
+                                 img.shape[0]).round().cpu().numpy()
+                    v_x = np.linspace(
+                        0, img.shape[1] - 1, img.shape[1]).astype(int)
 
-                    gt_pixel_ceiling = np.vstack((v_x, gt_pixel[0])).transpose()
-                    #pdb.set_trace()
-                    plotXY(img, gt_pixel_ceiling, color=(255,0,0))
+                    gt_pixel_ceiling = np.vstack(
+                        (v_x, gt_pixel[0])).transpose()
+                    # pdb.set_trace()
+                    plotXY(img, gt_pixel_ceiling, color=(255, 0, 0))
                     gt_pixel_floor = np.vstack((v_x, gt_pixel[1])).transpose()
-                    plotXY(img, gt_pixel_floor, color=(255,0,0))
+                    plotXY(img, gt_pixel_floor, color=(255, 0, 0))
 
-                    est_pixel_ceiling = np.vstack((v_x, est_pixel[0])).transpose()
-                    plotXY(img, est_pixel_ceiling, color=(0,255,255))
-                    #(255,255,0) yellow
-                    #(0,255,255) blue
-                    #(0,255,0) green
-                    #(255,160,0) orange
-                    #plotXY(img, est_pixel_ceiling, color=(0,0,255))
-                    est_pixel_floor = np.vstack((v_x, est_pixel[1])).transpose()
-                    plotXY(img, est_pixel_floor, color=(0,255,255))
-                    #plotXY(img, est_pixel_floor, color=(0,0,255))
-                    imwrite(dst_dir_est + f"img_{i}_lsun.jpg",img.astype(np.uint8))
-                    #imwrite(dst_dir_est + f"img_{i}_postprocess.jpg",img.astype(np.uint8))
-                    i+=1
-            #'''
+                    est_pixel_ceiling = np.vstack(
+                        (v_x, est_pixel[0])).transpose()
+                    plotXY(img, est_pixel_ceiling, color=(0, 255, 255))
+                    # (255,255,0) yellow
+                    # (0,255,255) blue
+                    # (0,255,0) green
+                    # (255,160,0) orange
+                    # plotXY(img, est_pixel_ceiling, color=(0,0,255))
+                    est_pixel_floor = np.vstack(
+                        (v_x, est_pixel[1])).transpose()
+                    plotXY(img, est_pixel_floor, color=(0, 255, 255))
+                    # plotXY(img, est_pixel_floor, color=(0,0,255))
+                    imwrite(dst_dir_est +
+                            f"img_{i}_lsun.jpg", img.astype(np.uint8))
+                    # imwrite(dst_dir_est + f"img_{i}_postprocess.jpg",img.astype(np.uint8))
+                    i += 1
+            # '''
             '''
             with torch.no_grad():
                 dt = self.net(x.to(self.device))
@@ -1010,5 +1144,3 @@ class WrapperLGTNet:
                     #imwrite(dst_dir_est + f"img_{i}_postprocess.jpg",img.astype(np.uint8))
                     i+=1
             '''
-                    
-        

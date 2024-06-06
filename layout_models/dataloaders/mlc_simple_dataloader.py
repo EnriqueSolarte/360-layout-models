@@ -17,6 +17,7 @@ class MVLSimpleDataLoader(data.Dataset):
     '''
     Dataloader that handles MLC dataset format.
     '''
+
     def __init__(self, cfg):
         self.cfg = cfg
         logging.warning(f"loading deprecated file")
@@ -36,7 +37,7 @@ class MVLSimpleDataLoader(data.Dataset):
             self.list_frames = [
                 item for sublist in self.list_frames for item in sublist
             ]
-            
+
         seed = cfg.get('seed', 1000)
         logging.info(f"Seed: {seed}")
         np.random.seed(seed)
@@ -119,7 +120,7 @@ class MVLSimpleDataLoader(data.Dataset):
         else:
             raise ValueError(f"Label file not found: {label_fn}")
         assert label.shape[1] == img.shape[1], f"Shape mismatch: {label_fn}, {label.shape}"
-        
+
         if label.shape[0] == 4:
             # ! Then labels were compute from mlc [4, 1024]
             std = label[2:]

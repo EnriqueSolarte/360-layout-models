@@ -33,6 +33,7 @@ def print_data_eval(data_dict, logger=logging, func=np.mean):
     """
     [logging.info(f"* {k}:{func(v)}") for k, v in data_dict.items()]
 
+
 def load_module(module_name):
     """
     Load a module and return the instance. The module path 

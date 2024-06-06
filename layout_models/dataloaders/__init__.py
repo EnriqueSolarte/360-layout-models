@@ -2,6 +2,7 @@
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
+
 def get_dataloader(dataset_class: Dataset, cfg: dict):
     """
     Returns a dataloader based on the dataset and the config.
@@ -16,4 +17,3 @@ def get_dataloader(dataset_class: Dataset, cfg: dict):
         worker_init_fn=lambda x: cfg.seed,
     )
     return loader
-    

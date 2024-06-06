@@ -13,10 +13,10 @@ from layout_models.dataloaders.image_idx_dataloader import ImageIdxDataloader
 from layout_models.dataloaders.mlc_simple_dataloader import get_mvl_simple_dataloader
 from layout_models.eval_utils import eval_2d3d_iuo_from_tensors, eval_2d3d_iuo
 from layout_models.loss_utils import (
-    compute_L1_loss, 
-    compute_weighted_L1, 
+    compute_L1_loss,
+    compute_weighted_L1,
     compute_norm_weighted_L1,
-    compute_batch_norm_weighted_L1, 
+    compute_batch_norm_weighted_L1,
     compute_bev_weighted_L1,
 )
 from tqdm import tqdm, trange
@@ -119,7 +119,7 @@ class WrapperHorizonNet:
         self.net.train()
 
         logging.info(f"Using {self.cfg.model.loss} loss for training")
-        
+
         iterator_train = iter(self.train_loader)
         for _ in trange(
                 len(self.train_loader),
@@ -127,11 +127,11 @@ class WrapperHorizonNet:
         ):
 
             self.train_iterations += 1
-            
+
             # x, y_bon_ref, std = next(iterator_train)
             # * dataloader returns (x, y_bon_ref, std, cam_dist)
-            x, y_bon_ref, std = next(iterator_train)
-            
+            x, y_bon_ref, std, cam_dist = next(iterator_train)
+
             y_bon_est, _ = self.net(x.to(self.device))
 
             if y_bon_est is np.nan:
@@ -145,37 +145,31 @@ class WrapperHorizonNet:
                                            y_bon_ref.to(self.device),
                                            std.to(self.device),
                                            self.cfg.model.min_std)
-            elif self.cfg.model.loss == "norm_weighted_L1":
-                loss = compute_norm_weighted_L1(y_bon_est.to(self.device),
-                                    y_bon_ref.to(self.device),
-                                    std.to(self.device),
-                                    self.cfg.model.min_std)
-            elif self.cfg.model.loss == "batch_norm_weighted_L1":
-                loss = compute_batch_norm_weighted_L1(y_bon_est.to(self.device),
-                                    y_bon_ref.to(self.device),
-                                    std.to(self.device),
-                                    self.cfg.model.min_std)
-            elif self.cfg.model.loss == "bev_weighted_L1":
-                loss = compute_bev_weighted_L1(y_bon_est.to(self.device),
-                                    y_bon_ref.to(self.device),
-                                    std.to(self.device),
-                                    kappa=self.cfg.metadata.loss_hyp.kappa, 
-                                    in_phi=self.cfg.metadata.loss_hyp.inflection_point,
-                                    # self.cfg.model.min_std
-                                    )
+            # elif self.cfg.model.loss == "norm_weighted_L1":
+            #     loss = compute_norm_weighted_L1(y_bon_est.to(self.device),
+            #                         y_bon_ref.to(self.device),
+            #                         std.to(self.device),
+            #                         self.cfg.model.min_std)
+            # elif self.cfg.model.loss == "batch_norm_weighted_L1":
+            #     loss = compute_batch_norm_weighted_L1(y_bon_est.to(self.device),
+            #                         y_bon_ref.to(self.device),
+            #                         std.to(self.device),
+            #                         self.cfg.model.min_std)
+            # elif self.cfg.model.loss == "bev_weighted_L1":
+            #     loss = compute_bev_weighted_L1(y_bon_est.to(self.device),
+            #                         y_bon_ref.to(self.device),
+            #                         std.to(self.device),
+            #                         kappa=self.cfg.metadata.loss_hyp.kappa,
+            #                         in_phi=self.cfg.metadata.loss_hyp.inflection_point,
+            #                         # self.cfg.model.min_std
+            #                         )
             elif self.cfg.model.loss == "test_loss":
                 loss = self.test_loss(y_bon_est.to(self.device),
-                                    y_bon_ref.to(self.device),
-                                    std.to(self.device),
-                                    cam_dist.to(self.device),
-                                    self.cfg.model.min_std,
-                                    )
-            elif self.cfg.model.loss == "external_loss_fn":
-                loss = self.external_loss_fn(y_bon_est.to(self.device),
-                                    y_bon_ref.to(self.device),
-                                    std.to(self.device),
-                                    self.cfg.model.min_std,
-                                    )
+                                      y_bon_ref.to(self.device),
+                                      std.to(self.device),
+                                      cam_dist.to(self.device),
+                                      self.cfg.model.min_std,
+                                      )
             else:
                 raise ValueError("Loss function no defined in config file")
             if loss.item() is np.NAN:
@@ -186,11 +180,11 @@ class WrapperHorizonNet:
             #                           self.lr_scheduler.get_last_lr()[0],
             #                           self.train_iterations)
 
-            wandb.log({
-                "train/loss": loss.item(),
-                "train/lr": self.lr_scheduler.get_last_lr()[0],
-                "train/iter": self.train_iterations
-            })
+            # wandb.log({
+            #     "train/loss": loss.item(),
+            #     "train/lr": self.lr_scheduler.get_last_lr()[0],
+            #     "train/iter": self.train_iterations
+            # })
 
             # back-prop
             self.optimizer.zero_grad()
@@ -309,7 +303,7 @@ class WrapperHorizonNet:
                 best_3d_iou_score__epoch=self.current_epoch,
                 best_2d_iou_score=curr_score_2d_iou,
                 best_2d_iou_score__epoch=self.current_epoch,
-                )
+            )
         else:
             best_3d_iou_score = self.best_scores["best_iou_valid_score"][
                 'best_3d_iou_score']
@@ -346,18 +340,18 @@ class WrapperHorizonNet:
         best_2d_iou_score = self.best_scores["best_iou_valid_score"][
             'best_2d_iou_score']
 
-        data = {
-            "valid_IoU/2D-IoU": curr_score_2d_iou,
-            "valid_IoU/3D-IoU": curr_score_3d_iou,
-            "valid_IoU/best-2D-IoU": best_2d_iou_score,
-            "valid_IoU/best-3D-IoU": best_3d_iou_score,
-            "valid_IoU/epochs": self.valid_iou_epochs,
-        }
-        wandb.log(data)
+        # data = {
+        #     "valid_IoU/2D-IoU": curr_score_2d_iou,
+        #     "valid_IoU/3D-IoU": curr_score_3d_iou,
+        #     "valid_IoU/best-2D-IoU": best_2d_iou_score,
+        #     "valid_IoU/best-3D-IoU": best_3d_iou_score,
+        #     "valid_IoU/epochs": self.valid_iou_epochs,
+        # }
+        # # wandb.log(data)
         self.valid_iou_epochs += 1
 
     def save_model(self, filename):
-    
+
         # ! Saving the current model
         state_dict = OrderedDict({
             "args": self.cfg,
@@ -369,7 +363,7 @@ class WrapperHorizonNet:
         })
         torch.save(state_dict, os.path.join(filename))
         logging.info(f"Saved model: {filename}")
-        
+
     def prepare_for_training(self):
         self.is_training = True
         self.current_epoch = 0
@@ -381,8 +375,8 @@ class WrapperHorizonNet:
         self.set_optimizer()
         self.set_scheduler()
         self.set_log_dir()
-        # self.set_train_dataloader()
-        # self.set_valid_dataloader()
+        self.set_train_dataloader()
+        self.set_valid_dataloader()
 
     def set_log_dir(self):
         output_dir = os.path.join(self.cfg.log_dir)
@@ -402,11 +396,11 @@ class WrapperHorizonNet:
         fn = os.path.join(self.dir_ckpt, "scene_list_training.json")
         save_json_dict(dict_data=room_idx_list, filename=fn)
         logging.info(f"Saved scene_list: {fn})")
-    
+
     def set_valid_dataloader(self):
         logging.warning("WARNING: This method is deprecated")
         logging.warning("use evaluate_2d3d_iou instead")
-        raise DeprecationWarning("This method is deprecated")
+        # raise DeprecationWarning("This method is deprecated")
         logging.info("Setting IoU Validation Dataloader")
         self.valid_iou_loader = get_mvl_simple_dataloader(
             self.cfg.valid_iou, self.device)
@@ -473,10 +467,11 @@ def evaluate_2d3d_iou(model, cfg):
     # * eval 2d3d iou in data defined in cfg
     dict_iou = evaluate_model(model, cfg)
 
-    fn = os.path.join(model.dir_ckpt, f"valid_iou_scores__{model.current_epoch}.json")
+    fn = os.path.join(
+        model.dir_ckpt, f"valid_iou_scores__{model.current_epoch}.json")
     save_json_dict(fn, dict_iou)
     logging.info(f"Saved scores: {fn}")
-    
+
     for split in cfg.get("splits", []):
         category = list(split.keys())[0]
         scene_list_fn = split[category]["scene_list"]
@@ -513,13 +508,13 @@ def evaluate_2d3d_iou(model, cfg):
                 f"{category}/epochs": model.valid_iou_epochs,
             }
         save_json_dict(fn_scores, data)
-        wandb.log(data)
+        # wandb.log(data)
 
     # * evaluation in all testing split. Must be at the end
     values_iou = np.array(list(dict_iou.values()))
     try:
         model.record_scores(np.nanmean(values_iou[:, 0]),
-                        np.nanmean(values_iou[:, 1]))
+                            np.nanmean(values_iou[:, 1]))
     except:
         logging.warning("Something went wrong in record_scores into the model")
         input("Press Enter to continue...")
@@ -528,7 +523,7 @@ def evaluate_2d3d_iou(model, cfg):
 def save_model(model):
     if not model.cfg.model.save_ckpt:
         return
-    run_name = Path(model.dir_ckpt).parent.stem 
+    run_name = Path(model.dir_ckpt).parent.stem
     best_models_dir = os.path.join(get_hydra_log_dir(), "best_models_ckpt")
     if os.path.exists(best_models_dir):
         # * In case of other runs
@@ -549,7 +544,7 @@ def save_model(model):
             log_scores["best_2d_iou__run_name"] = run_name
             log_scores["best_2d_iou"] = best_2d_iou
             logging.info(f"     *   Best 2D IoU model found: {best_2d_iou}")
-            
+
         fn = os.path.join(best_models_dir, f"best_scores.json")
         save_json_dict(fn, log_scores)
         logging.info(f"Registered best scores: {fn}")
@@ -560,7 +555,7 @@ def save_model(model):
         best_2d_iou = model.best_scores["best_iou_valid_score"]['best_2d_iou_score']
         log_scores = {
             "best_3d_iou__run_name": f"{run_name}",
-            "best_3d_iou": best_3d_iou, 
+            "best_3d_iou": best_3d_iou,
             "best_2d_iou__run_name": f"{run_name}",
             "best_2d_iou": best_2d_iou}
         fn = os.path.join(best_models_dir, f"best_2d_iou_model.pth")
@@ -573,7 +568,7 @@ def save_model(model):
         fn = os.path.join(best_models_dir, f"best_scores.json")
         save_json_dict(fn, log_scores)
         logging.info(f"Registered best scores: {fn}")
-    
+
 
 if __name__ == '__main__':
     from layout_models import load_layout_model
