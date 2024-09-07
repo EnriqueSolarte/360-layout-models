@@ -23,7 +23,7 @@ conda activate layout_models
 pip install git+https://github.com/EnriqueSolarte/layout_models.git@257d87f7988884777dc4e54261742955028bbe96
 ```
 
-### For installing in dev model
+### For installing this package in dev mode (for development)
 ```sh 
 git clone git@github.com:EnriqueSolarte/layout_models.git
 cd layout_models
