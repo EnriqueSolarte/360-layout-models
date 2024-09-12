@@ -8,7 +8,7 @@ setup(
     version="0.1",
     packages=find_packages(),
     package_data={
-                  "layout_models": ["model/**", "config/**"]
+                  "layout_models": ["models/**", "config/**"]
                   },
     install_requires=requirements,
     author="Enrique Solarte",
