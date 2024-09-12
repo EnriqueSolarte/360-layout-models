@@ -18,4 +18,4 @@ torchvision
 pyransac3d
 googledrivedownloader
 scikit-image
-geometry-perception-utils-dev @ git+https://github.com/EnriqueSolarte/geometry_perception_utils.git@69a9270d48f83a0e4c28c2ec9222995bce88c860
+geometry-perception-utils-dev @ git+https://github.com/EnriqueSolarte/geometry_perception_utils.git@e48f4362237a7ff42f3ba5c624b018f3446bd994
