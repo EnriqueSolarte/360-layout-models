@@ -3,7 +3,7 @@ from geometry_perception_utils.io_utils import get_abs_path, create_directory
 from geometry_perception_utils.config_utils import save_cfg
 from layout_models import horizon_net_v2 as hn
 from layout_models.utils import load_module
-from vslab_360_datasets import HM3D_MVL, ZInD_mvl, MP3D_FPE_MVL
+from multiview_datasets import HM3D_MVL, ZInD_mvl, MP3D_FPE_MVL
 from tqdm import tqdm
 from geometry_perception_utils.vispy_utils import plot_list_pcl
 from imageio.v2 import imwrite

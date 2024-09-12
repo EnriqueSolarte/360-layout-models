@@ -13,7 +13,7 @@ import os
 from torch import optim
 import numpy as np
 from tqdm import tqdm
-from vslab_360_datasets.data_structure.layout import Layout
+from multiview_datasets.data_structure.layout import Layout
 from tqdm import tqdm, trange
 import hydra
 from geometry_perception_utils.io_utils import get_abs_path

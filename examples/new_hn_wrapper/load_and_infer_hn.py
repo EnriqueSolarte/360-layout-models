@@ -1,5 +1,5 @@
 from layout_models import load_layout_model
-from vslab_360_datasets import HM3D_MVL
+from multiview_datasets import HM3D_MVL
 from layout_models import LY_MODELS_CFG
 from geometry_perception_utils.config_utils import read_cfg
 from geometry_perception_utils.io_utils import get_abs_path, create_directory

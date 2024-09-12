@@ -22,7 +22,7 @@ from layout_models.loss_utils import (
 from tqdm import tqdm, trange
 import logging
 from geometry_perception_utils.io_utils import save_json_dict
-from vslab_360_datasets.utils.scene_version_idx_utils import get_scene_list_from_list_scenes
+from multiview_datasets.utils.scene_version_idx_utils import get_scene_list_from_list_scenes
 import wandb
 import json
 from geometry_perception_utils.config_utils import get_hydra_log_dir
@@ -572,7 +572,7 @@ def save_model(model):
 
 if __name__ == '__main__':
     from layout_models import load_layout_model
-    from vslab_360_datasets import HM3D_MVL
+    from multiview_datasets import HM3D_MVL
     cfg_hn = read_cfg(os.path.join(MLC_PP_CFG_DIR, 'horizon_net.yaml'))
     cfg_datasets = read_cfg(os.path.join(MLC_PP_CFG_DIR, 'datasets.yaml'))
 
