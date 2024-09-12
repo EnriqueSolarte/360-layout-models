@@ -7,6 +7,9 @@ setup(
     name="layout_models",
     version="0.1",
     packages=find_packages(),
+    package_data={
+                  "layout_models": ["model/**", "config/**"]
+                  },
     install_requires=requirements,
     author="Enrique Solarte",
     author_email="enrique.solarte.pardo@gmail.com",
